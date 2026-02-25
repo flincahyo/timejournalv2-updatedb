@@ -1,0 +1,10 @@
+node_modules
+.next/
+.env
+.env.local
+.env*.local
+backend/__pycache__/
+backend/.env
+*.pyc
+fix_all_mojibake.py
+fix_mojibake.js
