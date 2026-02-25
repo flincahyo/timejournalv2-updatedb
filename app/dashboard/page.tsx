@@ -147,7 +147,7 @@ export default function DashboardPage() {
     "Tokyo": { label: "Tokyo", hours: "02:00–09:00 WIB", color: "#8b5cf6" },
     "Sydney": { label: "Sydney", hours: "04:00–13:00 WIB", color: "#6366f1" },
     "London": { label: "London", hours: "14:00–00:00 WIB", color: "#3b82f6" },
-    "Overlap (LDN+NY)": { label: "Overlap ⊕", hours: "19:00–00:00 WIB", color: "#f59e0b" },
+    "Overlap (LDN+NY)": { label: "Overlap", hours: "19:00–00:00 WIB", color: "#f59e0b" },
     "New York": { label: "New York", hours: "19:00–05:00 WIB", color: "#10b981" },
   };
 
@@ -393,7 +393,7 @@ export default function DashboardPage() {
           <div className="flex justify-between items-start pr-2.5 mb-4">
             <div className="text-[12px] font-bold text-text">Hourly</div>
           </div>
-          <div className="flex flex-col gap-3 pr-2.5 overflow-y-auto max-h-[160px] scrollbar-thin">
+          <div className="flex flex-col gap-3 pr-2.5 overflow-y-auto max-h-[200px] scrollbar-thin">
             {hourlyData.map(([hour, data]) => {
               const maxAbs = Math.max(...hourlyData.map(([, d]) => Math.abs(d.pnl)), 1);
               const w = Math.abs(data.pnl) / maxAbs * 100;
