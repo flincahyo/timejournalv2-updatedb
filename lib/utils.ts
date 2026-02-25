@@ -44,30 +44,48 @@ export function toWIBDate(dateStr: string) {
   }
 }
 
-// Detects Forex session from an ISO timestamp string or WIB hour number.
-// Sessions based on WIB (UTC+7):
-//   Asian:    06:00 – 15:00 WIB
-//   London:   14:00 – 22:00 WIB  (overlaps Asian 14-15)
-//   New York: 19:00 – 04:00 WIB  (wraps midnight)
-export function detectSession(dateStr: string | number): "Asian" | "London" | "New York" | "Unknown" {
+// DST-aware Forex session detector — mirrors backend logic.
+// Uses Intl.DateTimeFormat to get London & NY local hours, which auto-adjusts DST.
+// Sessions: Tokyo, Sydney, London, Overlap (LDN+NY), New York
+export function detectSession(
+  dateStr: string | number
+): "Tokyo" | "Sydney" | "London" | "Overlap (LDN+NY)" | "New York" | "Unknown" {
   if (dateStr === undefined || dateStr === null) return "Unknown";
   try {
-    let h: number;
-    if (typeof dateStr === 'number') {
-      h = dateStr;
+    let date: Date;
+    if (typeof dateStr === "number") {
+      // Assume WIB hour number (legacy fallback) — approximate UTC
+      const utcH = (dateStr - 7 + 24) % 24;
+      date = new Date(Date.UTC(2024, 0, 1, utcH, 0, 0));
     } else {
-      // If it already looks like a WIB string (yyyy-MM-dd HH:mm:ss), parse hour directly
-      if (dateStr.length >= 13 && dateStr[4] === '-' && !dateStr.includes('T')) {
-        h = parseInt(dateStr.slice(11, 13), 10);
+      // Parse ISO or WIB string
+      if (dateStr.length >= 13 && dateStr[4] === "-" && !dateStr.includes("T")) {
+        // WIB string "yyyy-MM-dd HH:mm:ss" — add WIB offset to get UTC
+        date = new Date(dateStr.replace(" ", "T") + "+07:00");
       } else {
-        const zoned = toZonedTime(parseISO(dateStr), 'Asia/Jakarta');
-        h = zoned.getHours();
+        date = new Date(dateStr);
       }
     }
-    if (h >= 6 && h < 14) return "Asian";
-    if (h >= 14 && h < 19) return "London";
-    if (h >= 19 || h < 4) return "New York";
-    return "Asian"; // 04:00-06:00 → quiet hours, count as Asian pre-market
+    if (isNaN(date.getTime())) return "Unknown";
+
+    // Get local hour in London and New York (DST-aware via browser Intl)
+    const getLocalHour = (tz: string) =>
+      parseInt(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: tz }).format(date), 10) % 24;
+
+    const londonHour = getLocalHour("Europe/London");
+    const nyHour = getLocalHour("America/New_York");
+
+    const londonOpen = londonHour >= 8 && londonHour < 17;
+    const nyOpen = nyHour >= 8 && nyHour < 17;
+
+    if (londonOpen && nyOpen) return "Overlap (LDN+NY)";
+    if (londonOpen) return "London";
+    if (nyOpen) return "New York";
+
+    // Tokyo (JST, no DST): 00:00–09:00 UTC
+    const utcHour = date.getUTCHours();
+    if (utcHour >= 0 && utcHour < 9) return "Tokyo";
+    return "Sydney";
   } catch {
     return "Unknown";
   }
