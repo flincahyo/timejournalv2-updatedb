@@ -15,48 +15,51 @@ function MiniProgressBar({ value, max, color }: { value: number; max: number; co
   );
 }
 
-function MiniStat({ label, value, pos }: { label: string; value: string; pos: boolean }) {
+function MiniStat({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="bg-surface2 rounded-[16px] p-3.5">
       <div className="text-[10px] font-bold text-text3 uppercase tracking-[.05em] mb-1.5">{label}</div>
-      <div className={`text-[16px] font-bold tracking-[-.3px] ${pos ? 'text-green' : 'text-red'}`}>{value}</div>
+      <div className="text-[16px] font-bold tracking-[-.3px]" style={{ color }}>{value}</div>
     </div>
   );
 }
 
-function AnalysisCard({ title, wins, losses, pnl, avgWin, avgLoss, avgPnl }: {
+function AnalysisCard({ title, wins, losses, pnl, avgWin, avgLoss, avgPnl, winColor, lossColor }: {
   title: string; wins: number; losses: number; pnl: number; avgWin: number; avgLoss: number; avgPnl: number;
+  winColor?: string; lossColor?: string;
 }) {
   const total = wins + losses;
   const wr = total ? (wins / total) * 100 : 0;
+  const wc = winColor ?? "#3b82f6";
+  const lc = lossColor ?? "#f59e0b";
   return (
     <div className="card p-4">
       <div className="text-[12px] font-bold text-text mb-3">{title}</div>
       <div className="mb-2">
         <div className="flex items-end justify-between mb-1">
           <div className="text-[10px] text-text3 font-medium uppercase tracking-[0.04em]">Win Rate</div>
-          <div className={`text-[15px] font-extrabold tracking-[-0.4px] leading-none ${wr >= 50 ? 'text-green' : 'text-red'}`}>{wr.toFixed(1)}%</div>
+          <div className="text-[15px] font-extrabold tracking-[-0.4px] leading-none" style={{ color: wr >= 50 ? wc : lc }}>{wr.toFixed(1)}%</div>
         </div>
-        <div className="h-[4px] bg-red-bg rounded-[3px] overflow-hidden mb-1.5 relative">
-          <div className="absolute left-0 top-0 h-full bg-green rounded-[3px] transition-all duration-300 ease-out" style={{ width: `${wr}%` }} />
+        <div className="h-[4px] bg-surface3 rounded-[3px] overflow-hidden mb-1.5 relative">
+          <div className="absolute left-0 top-0 h-full rounded-[3px] transition-all duration-300 ease-out" style={{ width: `${wr}%`, background: wc }} />
         </div>
         <div className="flex justify-between text-[9px] font-medium text-text3 uppercase tracking-[0.04em] mt-1.5">
-          <span><b className="text-green font-bold text-[10px]">{wins}</b> Wins</span>
-          <span><b className="text-red font-bold text-[10px]">{losses}</b> Losses</span>
+          <span><b className="font-bold text-[10px]" style={{ color: wc }}>{wins}</b> Wins</span>
+          <span><b className="font-bold text-[10px]" style={{ color: lc }}>{losses}</b> Losses</span>
         </div>
       </div>
       <div className="h-px bg-border my-2.5" />
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div>
           <div className="text-text3 text-[9px] uppercase tracking-[0.04em] mb-0.5">PNL</div>
-          <div className={`font-bold text-[14px] tracking-[-0.3px] ${pnl >= 0 ? 'text-green' : 'text-red'}`}>{fmtUSD(pnl)}</div>
+          <div className="font-bold text-[14px] tracking-[-0.3px]" style={{ color: pnl >= 0 ? wc : lc }}>{fmtUSD(pnl)}</div>
           <div className="text-[9px] text-text3 mt-0.5 uppercase tracking-[0.04em]">{fmtUSD(avgPnl)} Avg</div>
         </div>
         <div>
           <div className="text-text3 text-[9px] uppercase tracking-[0.04em] mb-0.5">Avg Win</div>
-          <div className="font-bold text-green text-[12px]">{fmtUSD(avgWin)}</div>
+          <div className="font-bold text-[12px]" style={{ color: wc }}>{fmtUSD(avgWin)}</div>
           <div className="text-text3 text-[9px] uppercase tracking-[0.04em] mt-1 mb-0.5">Avg Loss</div>
-          <div className="font-bold text-red text-[12px]">-{fmtUSD(avgLoss)}</div>
+          <div className="font-bold text-[12px]" style={{ color: lc }}>-{fmtUSD(avgLoss)}</div>
         </div>
       </div>
     </div>
@@ -139,16 +142,16 @@ export default function AnalyticsPage() {
       <div className="card p-5">
         <div className="text-[12px] font-bold text-text mb-3">Statistik Lengkap</div>
         <div className="grid grid-cols-5 gap-2.5">
-          <MiniStat label="Avg Win" value={`+$${stats.avgWin.toFixed(2)}`} pos={true} />
-          <MiniStat label="Avg Loss" value={`-$${stats.avgLoss.toFixed(2)}`} pos={false} />
-          <MiniStat label="Best Trade" value={`+$${stats.bestTrade.toFixed(2)}`} pos={true} />
-          <MiniStat label="Worst Trade" value={`-$${Math.abs(stats.worstTrade).toFixed(2)}`} pos={false} />
-          <MiniStat label="Total Fees" value={`-$${Math.abs(stats.totalFees).toFixed(2)}`} pos={false} />
-          <MiniStat label="Win Streak" value={`${stats.longestWinStreak}`} pos={true} />
-          <MiniStat label="Loss Streak" value={`${stats.longestLossStreak}`} pos={false} />
-          <MiniStat label="Avg R:R" value={`${stats.avgRR.toFixed(2)}×`} pos={stats.avgRR >= 1} />
-          <MiniStat label="Best Symbol" value={stats.bestSymbol} pos={true} />
-          <MiniStat label="Avg Hold" value={formatDuration(stats.avgTradeTimeMs).str} pos={true} />
+          <MiniStat label="Avg Win" value={`+$${stats.avgWin.toFixed(2)}`} color="#3b82f6" />
+          <MiniStat label="Avg Loss" value={`-$${stats.avgLoss.toFixed(2)}`} color="#f59e0b" />
+          <MiniStat label="Best Trade" value={`+$${stats.bestTrade.toFixed(2)}`} color="#6366f1" />
+          <MiniStat label="Worst Trade" value={`-$${Math.abs(stats.worstTrade).toFixed(2)}`} color="#f97316" />
+          <MiniStat label="Total Fees" value={`-$${Math.abs(stats.totalFees).toFixed(2)}`} color="#94a3b8" />
+          <MiniStat label="Win Streak" value={`${stats.longestWinStreak}`} color="#0ea5e9" />
+          <MiniStat label="Loss Streak" value={`${stats.longestLossStreak}`} color="#e879f9" />
+          <MiniStat label="Avg R:R" value={`${stats.avgRR.toFixed(2)}×`} color={stats.avgRR >= 1 ? "#3b82f6" : "#94a3b8"} />
+          <MiniStat label="Best Symbol" value={stats.bestSymbol} color="#10b981" />
+          <MiniStat label="Avg Hold" value={formatDuration(stats.avgTradeTimeMs).str} color="#8b5cf6" />
         </div>
       </div>
 
@@ -196,7 +199,11 @@ export default function AnalyticsPage() {
                 <ReferenceLine x={0} stroke="var(--border)" />
                 <Bar dataKey={sortKey === "winRate" ? "winRate" : sortKey === "count" ? "count" : "pnl"} radius={[0, 2, 2, 0]} maxBarSize={16}>
                   {symData.map((s, i) => (
-                    <Cell key={i} fill={sortKey === "count" ? "var(--accent2)" : s.pnl >= 0 ? "var(--green)" : "var(--red)"} />
+                    <Cell key={i} fill={
+                      sortKey === "count"
+                        ? `hsl(${220 + i * 20}, 70%, 58%)`
+                        : s.pnl >= 0 ? "#3b82f6" : "#f59e0b"
+                    } />
                   ))}
                 </Bar>
               </BarChart>
@@ -208,17 +215,17 @@ export default function AnalyticsPage() {
       {/* Symbol Summary Cards */}
       <div className="grid grid-cols-5 gap-3">
         {[
-          { label: "Best Symbol Sum", val: fmtUSD(Math.max(...Object.values(stats.symbolStats).map(s => s.pnl), 0)), sub: stats.bestSymbol, color: "text-green" },
-          { label: "Worst Symbol Sum", val: fmtUSD(Math.min(...Object.values(stats.symbolStats).map(s => s.pnl), 0)), sub: stats.worstSymbol, color: "text-red" },
-          { label: "Best Symbol Avg", val: fmtUSD(Math.max(...Object.values(stats.symbolStats).map(s => s.pnl / s.count), 0)), sub: "avg/trade", color: "text-green" },
-          { label: "Worst Symbol Avg", val: fmtUSD(Math.min(...Object.values(stats.symbolStats).map(s => s.pnl / s.count), 0)), sub: "avg/trade", color: "text-red" },
-          { label: "Number of Symbols", val: String(stats.numberOfSymbols), sub: "traded", color: "text-accent2" },
+          { label: "Best Symbol Sum", val: fmtUSD(Math.max(...Object.values(stats.symbolStats).map(s => s.pnl), 0)), sub: stats.bestSymbol, color: "#3b82f6" },
+          { label: "Worst Symbol Sum", val: fmtUSD(Math.min(...Object.values(stats.symbolStats).map(s => s.pnl), 0)), sub: stats.worstSymbol, color: "#f59e0b" },
+          { label: "Best Symbol Avg", val: fmtUSD(Math.max(...Object.values(stats.symbolStats).map(s => s.pnl / s.count), 0)), sub: "avg/trade", color: "#6366f1" },
+          { label: "Worst Symbol Avg", val: fmtUSD(Math.min(...Object.values(stats.symbolStats).map(s => s.pnl / s.count), 0)), sub: "avg/trade", color: "#f97316" },
+          { label: "Number of Symbols", val: String(stats.numberOfSymbols), sub: "traded", color: "#8b5cf6" },
         ].map(c => (
           <div key={c.label} className="card py-3.5 px-4">
             <div className="text-[10px] font-semibold text-text3 mb-1.5 uppercase tracking-[0.04em] flex items-center gap-1">
               {c.label} <span className="text-border2 text-[9px]">ⓘ</span>
             </div>
-            <div className={`text-[18px] font-extrabold tracking-[-0.5px] ${c.color}`}>{c.val}</div>
+            <div className={`text-[18px] font-extrabold tracking-[-0.5px]`} style={{ color: c.color }}>{c.val}</div>
             <div className="text-[10px] text-text3 mt-0.5">{c.sub}</div>
           </div>
         ))}
@@ -232,22 +239,23 @@ export default function AnalyticsPage() {
           <div className="mb-3">
             <div className="flex justify-between text-[11px] font-medium mb-1.5">
               <span className="text-text3 text-[9px] uppercase tracking-[0.04em]">Largest Win</span>
-              <span className="text-green font-bold text-[12px]">{fmtUSD(bestTrade)}</span>
+              <span className="text-[12px]" style={{ color: "#3b82f6", fontWeight: 700 }}>{fmtUSD(bestTrade)}</span>
             </div>
-            <MiniProgressBar value={bestTrade} max={Math.max(bestTrade, Math.abs(worstTrade))} color="var(--green)" />
+            <MiniProgressBar value={bestTrade} max={Math.max(bestTrade, Math.abs(worstTrade))} color="#3b82f6" />
           </div>
           <div>
             <div className="flex justify-between text-[11px] font-medium mb-1.5 mt-4">
               <span className="text-text3 text-[9px] uppercase tracking-[0.04em]">Largest Loss</span>
-              <span className="text-red font-bold text-[12px]">{fmtUSD(worstTrade)}</span>
+              <span className="text-[12px]" style={{ color: "#f59e0b", fontWeight: 700 }}>{fmtUSD(worstTrade)}</span>
             </div>
-            <MiniProgressBar value={Math.abs(worstTrade)} max={Math.max(bestTrade, Math.abs(worstTrade))} color="var(--red)" />
+            <MiniProgressBar value={Math.abs(worstTrade)} max={Math.max(bestTrade, Math.abs(worstTrade))} color="#f59e0b" />
           </div>
         </div>
 
         {/* Long Analysis */}
         <AnalysisCard
           title="Long Analysis"
+          winColor="#3b82f6" lossColor="#f59e0b"
           wins={longWins.length} losses={longLoss.length}
           pnl={longs.reduce((a, t) => a + t.pnl, 0)}
           avgWin={avg(longWins.map(t => t.pnl))}
@@ -258,6 +266,7 @@ export default function AnalyticsPage() {
         {/* Short Analysis */}
         <AnalysisCard
           title="Short Analysis"
+          winColor="#8b5cf6" lossColor="#f97316"
           wins={shortWins.length} losses={shortLoss.length}
           pnl={shorts.reduce((a, t) => a + t.pnl, 0)}
           avgWin={avg(shortWins.map(t => t.pnl))}
@@ -271,16 +280,16 @@ export default function AnalyticsPage() {
           <div className="mb-3.5 mt-2">
             <div className="flex justify-between text-[11px] font-medium mb-1.5">
               <span className="text-text3">Longs</span>
-              <span className="font-bold text-green">{longs.length}</span>
+              <span className="font-bold" style={{ color: "#3b82f6" }}>{longs.length}</span>
             </div>
-            <MiniProgressBar value={longs.length} max={Math.max(longs.length + shorts.length, 1)} color="var(--green)" />
+            <MiniProgressBar value={longs.length} max={Math.max(longs.length + shorts.length, 1)} color="#3b82f6" />
           </div>
           <div>
             <div className="flex justify-between text-[11px] font-medium mb-1.5 mt-4">
               <span className="text-text3">Shorts</span>
-              <span className="font-bold text-red">{shorts.length}</span>
+              <span className="font-bold" style={{ color: "#8b5cf6" }}>{shorts.length}</span>
             </div>
-            <MiniProgressBar value={shorts.length} max={Math.max(longs.length + shorts.length, 1)} color="var(--red)" />
+            <MiniProgressBar value={shorts.length} max={Math.max(longs.length + shorts.length, 1)} color="#8b5cf6" />
           </div>
           <div className="mt-4 text-[10px] font-medium text-text3 text-center bg-surface2 p-1.5 rounded uppercase tracking-[0.04em]">
             {longs.length} Longs Â· {shorts.length} Shorts
@@ -312,9 +321,12 @@ export default function AnalyticsPage() {
               <div key={setup} className="grid grid-cols-[1fr_60px_60px_80px_80px] py-2 px-3 border-b border-border text-[11px] transition-colors hover:bg-surface3 last:border-0">
                 <span className="text-text font-medium">{setup}</span>
                 <span className="text-text3">{d.count}</span>
-                <span className={`font-semibold ${d.wins / d.count >= 0.5 ? 'text-green' : 'text-red'}`}>{((d.wins / d.count) * 100).toFixed(0)}%</span>
-                <span className={`font-semibold tracking-[-0.2px] ${d.pnl >= 0 ? 'text-green' : 'text-red'}`}>{fmtUSD(d.pnl)}</span>
-                <span className={`font-medium ${d.pips >= 0 ? 'text-green' : 'text-red'}`}>{fmtPips(d.pips / d.count)}</span>
+                <span className={`font-semibold ${d.wins / d.count >= 0.5 ? 'text-[#3b82f6]' : 'text-[#f59e0b]'
+                  }`}>{((d.wins / d.count) * 100).toFixed(0)}%</span>
+                <span className={`font-semibold tracking-[-0.2px] ${d.pnl >= 0 ? 'text-[#3b82f6]' : 'text-[#f59e0b]'
+                  }`}>{fmtUSD(d.pnl)}</span>
+                <span className={`font-medium ${d.pips >= 0 ? 'text-[#6366f1]' : 'text-[#f97316]'
+                  }`}>{fmtPips(d.pips / d.count)}</span>
               </div>
             ));
           }, [closed])}
