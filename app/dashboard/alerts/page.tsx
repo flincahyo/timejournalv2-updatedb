@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAlertStore, AnyAlert, CandleAlert, PriceAlert } from "@/store";
+import { apiPost } from "@/lib/api";
 
 const SOUND_PRESETS = [
   { label: "Notification Bell", url: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" },
@@ -40,13 +41,7 @@ export default function AlertsPage() {
       try {
         const payload = { items: [{ symbol: priceSymbol.toUpperCase(), timeframe: "M1" }] };
         // We use the same backend endpoint AlertWatcher uses to get the latest M1 tick
-        const res = await fetch("http://localhost:8000/api/candles", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) return;
-        const json = await res.json();
+        const json = await apiPost<any>("/api/candles", payload);
         if (json.data && json.data.length > 0) {
           const candles = json.data[0].candles;
           if (candles && candles.length > 1) {

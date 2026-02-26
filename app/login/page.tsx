@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store";
-import { authLogin, authRegister, authGoogleDemo, loadSession } from "@/lib/auth";
+import { authLogin, authRegister, authGoogleDemo, authGetMe } from "@/lib/auth";
+import { getToken } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,9 +18,14 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
-    // BUG 3 FIX: restore session dari localStorage saat halaman load
-    const ses = loadSession();
-    if (ses) setUser({ id: ses.id, email: ses.email, name: ses.name, provider: "credentials", createdAt: ses.createdAt });
+    // Restore session from token on mount
+    if (!user && getToken()) {
+      authGetMe().then((u) => {
+        if (u) {
+          setUser({ id: u.id, email: u.email, name: u.name, provider: "credentials", createdAt: u.createdAt });
+        }
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -35,16 +41,13 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setError("");
-    await new Promise(r => setTimeout(r, 500));
 
     if (mode === "register") {
-      // BUG 1 FIX: validasi email unik + password
-      const res = authRegister(name, email, password);
+      const res = await authRegister(name, email, password);
       if (!res.ok) { setError(res.error!); setLoading(false); return; }
       applyUser(res.user!);
     } else {
-      // BUG 1 FIX: login cek DB, bukan terima email asal
-      const res = authLogin(email, password);
+      const res = await authLogin(email, password);
       if (!res.ok) { setError(res.error!); setLoading(false); return; }
       applyUser(res.user!);
     }
@@ -53,9 +56,8 @@ export default function LoginPage() {
 
   const handleGoogle = async () => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 400));
-    const u = authGoogleDemo();
-    applyUser(u);
+    const u = await authGoogleDemo();
+    if (u) applyUser(u);
     setLoading(false);
   };
 
@@ -68,7 +70,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-9">
           <div className="inline-flex items-center gap-2.5 bg-surface border border-border rounded-xl py-2.5 px-5 mb-5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#7c3aed] flex items-center justify-center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#4f46e5] to-[#7c3aed] flex items-center justify-center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg></div>
             <span className="text-[18px] font-extrabold text-text tracking-[-.3px]">TimeJournal</span>
           </div>
           <div className="text-[22px] font-extrabold text-text mb-1.5 tracking-[-.4px]">
@@ -80,7 +82,7 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-surface border border-border rounded-[20px] p-8 shadow-s2">
-          {/* Google */}
+          {/* Google Demo */}
           <button onClick={handleGoogle} disabled={loading} className="w-full py-3 px-5 bg-surface2 hover:bg-surface3 border border-border hover:border-accent rounded-xl flex items-center justify-center gap-2.5 text-text text-[13px] font-semibold mb-5 cursor-pointer transition-all duration-150">
             <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" /><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" /><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" /><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" /></svg>
             Lanjutkan dengan Google (Demo)
@@ -130,7 +132,7 @@ export default function LoginPage() {
             </button>
           </div>
         </div>
-        <div className="text-center mt-4 text-[11px] text-text3">Data tersimpan lokal di browser kamu.</div>
+        <div className="text-center mt-4 text-[11px] text-text3">Data tersimpan di server, aman dan bisa diakses dari mana saja.</div>
       </div>
     </div>
   );

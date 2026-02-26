@@ -5,6 +5,7 @@ import { useFilteredTrades, useMT5Store } from "@/store";
 import { fmtUSD, fmtPips, formatDuration } from "@/lib/utils";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Cell } from "recharts";
 import ReactMarkdown from "react-markdown";
+import { apiPost } from "@/lib/api";
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // PANZE DONUT CHART — like "Projects Overview" card
@@ -189,7 +190,7 @@ export default function DashboardPage() {
     "Tokyo": { label: "Tokyo", hours: "02:00–09:00 WIB", color: "#8b5cf6" },
     "Sydney": { label: "Sydney", hours: "04:00–13:00 WIB", color: "#6366f1" },
     "London": { label: "London", hours: "14:00–00:00 WIB", color: "#3b82f6" },
-    "Overlap (LDN+NY)": { label: "Overlap", hours: "19:00–00:00 WIB", color: "#f59e0b" },
+    "Overlap (LDN+NY)": { label: "Overlap LN+NY", hours: "19:00–00:00 WIB", color: "#f59e0b" },
     "New York": { label: "New York", hours: "19:00–05:00 WIB", color: "#10b981" },
   };
 
@@ -229,16 +230,10 @@ export default function DashboardPage() {
         bestSymbol: stats.bestSymbol,
         worstSymbol: stats.worstSymbol,
         recentStreaks: streakCtx,
-        notes: `Avg RR is ${stats.avgRR.toFixed(2)}, Longs: ${stats.longWins}/${stats.longWins + stats.longLosses || 0} wins, Shorts: ${stats.shortWins}/${stats.shortWins + stats.shortLosses || 0} wins.` // Send simple stats summary as notes
+        notes: `Avg RR is ${stats.avgRR.toFixed(2)}, Longs: ${stats.longWins}/${stats.longWins + stats.longLosses || 0} wins, Shorts: ${stats.shortWins}/${stats.shortWins + stats.shortLosses || 0} wins.`
       };
 
-      const res = await fetch("http://localhost:8000/api/ai/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
+      const data = await apiPost<any>("/api/ai/analyze", payload);
       if (data.success) {
         setAiInsights(data.insight);
       } else {

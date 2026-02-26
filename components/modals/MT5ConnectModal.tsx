@@ -4,7 +4,7 @@ import { useMT5Store } from "@/store";
 import { normalizeTrade } from "@/hooks/useMT5Sync";
 import { Trade } from "@/types";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+import { apiPost } from "@/lib/api";
 
 export default function MT5ConnectModal({ onClose }: { onClose: () => void }) {
   const { setTrades, setLiveTrades, setAccount, setConnected, setConnectionParams, setLastSync, isConnected, account, lastSync } = useMT5Store();
@@ -23,18 +23,14 @@ export default function MT5ConnectModal({ onClose }: { onClose: () => void }) {
     const prog = setInterval(() => setProgress(p => Math.min(p + Math.random() * 12, 90)), 300);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/mt5/connect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: parseInt(form.login), password: form.password, server: form.server, port: parseInt(form.port) }),
+      const data = await apiPost<any>("/api/mt5/connect", {
+        login: parseInt(form.login),
+        password: form.password,
+        server: form.server,
+        port: parseInt(form.port)
       });
-      clearInterval(prog); setProgress(100);
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Koneksi gagal");
-      }
-      const data = await res.json();
+      clearInterval(prog); setProgress(100);
       const normalizedTrades = ((data.trades || []) as Record<string, unknown>[]).map(normalizeTrade);
       const normalizedLive = ((data.live_trades || []) as Record<string, unknown>[]).map(normalizeTrade);
 
@@ -176,7 +172,7 @@ export default function MT5ConnectModal({ onClose }: { onClose: () => void }) {
 
         {step === "error" && (
           <div className="fade-in text-center py-5">
-            <div className="mb-3.5 leading-none flex items-center justify-center"><svg width="48" height="48" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#EF4444" fillOpacity="0.15" stroke="#EF4444" strokeWidth="1.5"/><path d="M15 9l-6 6M9 9l6 6" stroke="#EF4444" strokeWidth="2" strokeLinecap="round"/></svg></div>
+            <div className="mb-3.5 leading-none flex items-center justify-center"><svg width="48" height="48" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#EF4444" fillOpacity="0.15" stroke="#EF4444" strokeWidth="1.5" /><path d="M15 9l-6 6M9 9l6 6" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" /></svg></div>
             <div className="text-[15px] font-bold text-text mb-2">Koneksi Gagal</div>
             <div className="text-[13px] font-medium text-text3 mb-5">{errMsg}</div>
             <button onClick={() => setStep("form")} className="py-2.5 px-6 btn-primary">Coba Lagi</button>

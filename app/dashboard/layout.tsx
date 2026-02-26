@@ -1,37 +1,57 @@
 ﻿"use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/store";
+import { useAuthStore, useMT5Store, useJournalStore, useAlertStore, useNewsStore } from "@/store";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { useMT5Sync } from "@/hooks/useMT5Sync";
-import { loadSession } from "@/lib/auth";
+import { authGetMe } from "@/lib/auth";
+import { getToken } from "@/lib/api";
 
-function SyncProvider({ children }: { children: React.ReactNode }) {
+function DataLoader({ children }: { children: React.ReactNode }) {
   useMT5Sync();
   return <>{children}</>;
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, setUser } = useAuthStore();
+  const { loadStatus } = useMT5Store();
+  const { fetchJournal } = useJournalStore();
+  const { fetchAlerts } = useAlertStore();
+  const { loadFromServer: loadNewsSettings } = useNewsStore();
   const router = useRouter();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!user) {
-      const ses = loadSession();
-      if (ses) {
-        setUser({ id: ses.id, email: ses.email, name: ses.name, provider: "credentials", createdAt: ses.createdAt });
+    async function bootstrap() {
+      if (user) {
+        // Already have user in memory — load server data
+        await Promise.all([loadStatus(), fetchJournal(), fetchAlerts(), loadNewsSettings()]);
         setReady(true);
-      } else {
-        router.replace("/login");
+        return;
       }
-    } else {
+      const token = getToken();
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+      // Validate token against server and restore session
+      const me = await authGetMe();
+      if (!me) {
+        router.replace("/login");
+        return;
+      }
+      setUser({ id: me.id, email: me.email, name: me.name, provider: "credentials", createdAt: me.createdAt });
+      // Load all server data in parallel after auth confirmed
+      await Promise.all([loadStatus(), fetchJournal(), fetchAlerts(), loadNewsSettings()]);
       setReady(true);
     }
+    bootstrap();
   }, []);
 
-  useEffect(() => { if (ready && !user) router.replace("/login"); }, [user, ready]);
+  useEffect(() => {
+    if (ready && !user) router.replace("/login");
+  }, [user, ready]);
 
   if (!ready) return (
     <div className="min-h-screen flex items-center justify-center bg-bg">
@@ -43,7 +63,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
-    <SyncProvider>
+    <DataLoader>
       <div className="flex h-screen overflow-hidden">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -53,6 +73,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </main>
         </div>
       </div>
-    </SyncProvider>
+    </DataLoader>
   );
 }

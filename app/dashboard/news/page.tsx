@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useNewsStore } from '@/store';
 import { toWIB } from '@/lib/utils';
 import ReactMarkdown from "react-markdown";
+import { apiPost } from '@/lib/api';
 
 interface FFEvent {
     title: string;
@@ -54,16 +55,10 @@ export default function NativeNewsPage() {
         setAiInsights("");
 
         try {
-            const res = await fetch("http://localhost:8000/api/ai/analyze-news", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    target_events: filteredEvents,
-                    context_events: contextEvents
-                })
+            const data = await apiPost<any>("/api/ai/analyze-news", {
+                target_events: filteredEvents,
+                context_events: contextEvents
             });
-
-            const data = await res.json();
             if (data.success) {
                 setAiInsights(data.insight);
             } else {
