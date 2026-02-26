@@ -263,6 +263,10 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     }
 
 
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "time": datetime.datetime.now(tz=WIB).isoformat()}
+
 @app.get("/api/auth/me")
 async def get_me(user: User = Depends(get_current_user)):
     return {"id": user.id, "email": user.email, "name": user.name, "createdAt": user.created_at.isoformat()}
