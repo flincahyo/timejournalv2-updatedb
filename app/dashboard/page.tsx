@@ -394,11 +394,11 @@ export default function DashboardPage() {
               <div className="flex gap-4">
                 <div className="flex items-center gap-1.25">
                   <div className="w-2 h-2 rounded-full border-[1.5px] border-surface bg-blue ring-1 ring-blue/20" />
-                  <span className="text-[11px] text-text2">Profit: ${Math.max(stats.totalPnl, 0).toFixed(0)}</span>
+                  <span className="text-[11px] text-text2">Profit: ${stats.grossProfit.toFixed(0)}</span>
                 </div>
                 <div className="flex items-center gap-1.25">
                   <div className="w-2 h-2 rounded-full border-[1.5px] border-surface bg-orange ring-1 ring-orange/20" />
-                  <span className="text-[11px] text-text2">Loss: ${Math.abs(Math.min(stats.totalPnl, 0)).toFixed(0)}</span>
+                  <span className="text-[11px] text-text2">Loss: ${stats.grossLoss.toFixed(0)}</span>
                 </div>
               </div>
             </div>

@@ -350,7 +350,9 @@ export function calcStats(trades: any[]) {
     avgHoldShorts,
     scalpingWinRate,
     intradayWinRate,
-    multidayWinRate
+    multidayWinRate,
+    grossProfit,
+    grossLoss
   };
 }
 

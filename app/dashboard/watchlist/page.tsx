@@ -17,7 +17,7 @@ function TradingViewWidget() {
     script.innerHTML = `{
       "autosize": true,
       "symbol": "OANDA:XAUUSD",
-      "interval": "15",
+      "interval": "5",
       "timezone": "Asia/Jakarta",
       "theme": "light",
       "style": "1",
