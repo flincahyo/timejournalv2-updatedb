@@ -40,11 +40,11 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--output-document=/dev/null", "http://127.0.0.1:8000/api/health" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8000/api/health > /dev/null || exit 1" ]
       interval: 30s
       timeout: 10s
-      retries: 10
-      start_period: 90s
+      retries: 5
+      start_period: 30s
 
   # ── Next.js Frontend ─────────────────────────────────────────────────────────
   frontend:
@@ -60,7 +60,7 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "nc -z 127.0.0.1 3000 || exit 1" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3000 > /dev/null || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 5
