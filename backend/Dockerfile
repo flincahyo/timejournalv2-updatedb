@@ -5,13 +5,12 @@ FROM python:3.11-bookworm
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    wine \
-    wine32:i386 \
     wine64 \
+    wine32:i386 \
+    xvfb \
     winetricks \
     wget \
     cabextract \
-    xvfb \
     libglib2.0-0 \
     libgomp1 && \
     apt-get clean && \
