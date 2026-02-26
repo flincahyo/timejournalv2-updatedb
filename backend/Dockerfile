@@ -11,6 +11,10 @@ RUN dpkg --add-architecture i386 && \
     apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
+    python3-dev \
+    build-essential \
+    libffi-dev \
+    libssl-dev \
     wine64 \
     wine32:i386 \
     xvfb \
@@ -40,10 +44,6 @@ COPY . .
 
 # Create data directory for any file-based artifacts
 RUN mkdir -p /app/data
-
-# Note: MT5 terminal must be pre-installed into the Wine prefix.
-# On first run, use the setup script or mount a pre-built WINEPREFIX.
-# See deploy/setup_mt5_wine.sh for instructions.
 
 EXPOSE 8000
 
