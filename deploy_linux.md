@@ -12,24 +12,57 @@ In Coolify, create a new project and select **Docker Compose**.
 - **Source**: Your GitHub repository (`flincahyo/timejournalv2-updatedb.git`)
 - **Type**: Docker Compose
 
-### Environment Variables
-Configure these in the Coolify dashboard:
+### Langkah-langkah Detail Input Environment Variables di Coolify:
+
+1.  Buka dashboard **Coolify**.
+2.  Pilih **Project** kamu, lalu pilih **Resource** (Docker Compose) yang baru dibuat.
+3.  Klik tab **Environment Variables** di menu sebelah kiri.
+4.  Klik tombol **Bulk Import** (opsi paling mudah) dan paste daftar di bawah ini.
+5.  **PENTING**: Centang opsi **Build Time** untuk variabel `NEXT_PUBLIC_BACKEND_URL` agar Next.js bisa membaca URL backend saat proses build.
+
+### Daftar Environment Variables (Copy & Paste):
+
 ```env
+# ── Database Setup ──────────────────
 POSTGRES_USER=timejournal
-POSTGRES_PASSWORD=your_secure_password
+POSTGRES_PASSWORD=ganti_dengan_bebas_tanpa_spasi
 POSTGRES_DB=timejournal
-DATABASE_URL=postgresql+asyncpg://timejournal:your_secure_password@postgres:5432/timejournal
-JWT_SECRET_KEY=your_random_32_char_secret
-XAI_API_KEY=your_xai_key
+# URL ini otomatis mendeteksi container postgres di dalam network docker
+DATABASE_URL=postgresql+asyncpg://timejournal:ganti_dengan_bebas_tanpa_spasi@postgres:5432/timejournal
+
+# ── Auth & Security ─────────────────
+# Gunakan 32 karakter random (bebas)
+JWT_SECRET_KEY=masukkan_32_karakter_bebas_acak_disini
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+
+# ── Connections ──────────────────────
+# Isi dengan domain dashboard kamu (misal: https://journal.flincahyo.com)
+# Jika belum punya domain, pakai IP server: http://IP_SERVER_KAMU
+NEXT_PUBLIC_BACKEND_URL=http://backend:8000
+ALLOWED_ORIGINS=*
+
+# ── MetaTrader 5 (Wine) ──────────────
+# Lokasi file MT5 setelah di-install lewat terminal nanti
 MT5_TERMINAL_PATH=C:\Program Files\MetaTrader 5\terminal64.exe
+
+# ── AI Features (Optional) ───────────
+XAI_API_KEY=xai-masukkan-key-kamu-disini
 ```
 
-## 3. Persistent Storage (CRITICAL)
-The MT5 terminal must be installed inside a **Wine Prefix**. This project uses a volume named `wine_prefix`.
-In Coolify, ensure this volume is persistent so your MT5 installation isn't lost on restart.
+---
 
-### How to Install MT5 on the Server Headless:
-Since the server has no GUI, the easiest way to "install" MT5 into the container's Wine volume is:
+## 3. Persistent Storage (SANGAT PENTING!)
+Agar instalasi MetaTrader 5 kamu tidak hilang setiap kali server restart atau update code, kamu harus memastikan volume `wine_prefix` bersifat **Persistent**.
+
+Di Coolify:
+1. Buka tab **Storage**.
+2. Pastikan ada baris untuk: `wine_prefix` -> `/root/.wine`.
+3. Jika Coolify meminta path host, arahkan ke folder di server kamu, misal: `/var/lib/docker/volumes/timejournal_wine_prefix`.
+
+---
+
+## 4. Cara Install MT5 Tanpa Layar (Headless)
+Setelah status semua container **Running (Healthy)**:
 
 1. **Method A: Copy from Windows (Recommended)**
    - Zip your `C:\Users\<User>\.wine\drive_c\Program Files\MetaTrader 5` folder from a local Windows machine (or another Wine setup).
