@@ -15,10 +15,12 @@ In Coolify, create a new project and select **Docker Compose**.
 ### Langkah-langkah Detail Input Environment Variables di Coolify:
 
 1.  Buka dashboard **Coolify**.
-2.  Pilih **Project** kamu, lalu pilih **Resource** (Docker Compose) yang baru dibuat.
+2.  Pilih **Project** kamu, lalu pilih **Resource** yang baru dibuat.
 3.  Klik tab **Environment Variables** di menu sebelah kiri.
-4.  Klik tombol **Bulk Import** (opsi paling mudah) dan paste daftar di bawah ini.
-5.  **PENTING**: Centang opsi **Build Time** untuk variabel `NEXT_PUBLIC_BACKEND_URL` agar Next.js bisa membaca URL backend saat proses build.
+4.  Klik tombol **Developer view** (di samping tombol `+ Add`). Ini akan membuka kotak teks besar.
+5.  Paste daftar di bawah ini ke dalam kotak tersebut.
+6.  Klik tombol **Save** atau **Update**.
+7.  **PENTING**: Setelah di-save, pastikan centang opsi **Build Time** muncul/aktif untuk variabel `NEXT_PUBLIC_BACKEND_URL` agar Next.js bisa membaca URL backend saat proses build.
 
 ### Daftar Environment Variables (Copy & Paste):
 
