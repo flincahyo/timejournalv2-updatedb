@@ -711,12 +711,12 @@ Format Markdown. Bold setiap poin utama. Struktur:
 # ── Health Check ──────────────────────────────────────────────────────────────
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "version": "3.0", "mt5_available": MT5_AVAILABLE}
+    return {"status": "ok", "version": "3.0"}
 
 
 @app.get("/")
 def root():
-    return {"status": "ok", "version": "3.0", "mt5_available": MT5_AVAILABLE}
+    return {"status": "ok", "version": "3.0"}
 
 
 if __name__ == "__main__":
