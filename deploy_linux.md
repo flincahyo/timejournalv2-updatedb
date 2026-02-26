@@ -12,6 +12,16 @@ In Coolify, create a new project and select **Docker Compose**.
 - **Source**: Your GitHub repository (`flincahyo/timejournalv2-updatedb.git`)
 - **Type**: Docker Compose
 
+> [!IMPORTANT]
+> **WAJIB: Ganti Build Pack ke "Docker"**
+> Secara default, Coolify menggunakan "Nixpacks" yang tidak mendukung Wine. Anda **WAJIB** menggantinya ke Docker agar `Dockerfile` saya dijalankan.
+> 
+> **Cara Ganti:**
+> 1. Buka resource **Docker Compose** Anda di Coolify.
+> 2. Klik menu **General** atau **Configuration**.
+> 3. Cari bagian **Build Pack**. Ubah dari "Nixpacks" menjadi **Docker** atau **Docker Compose**.
+> 4. Klik **Save** dan lakukan **Redeploy**.
+
 ### Langkah-langkah Detail Input Environment Variables di Coolify:
 
 1.  Buka dashboard **Coolify**.
