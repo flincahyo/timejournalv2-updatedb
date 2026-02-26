@@ -60,7 +60,7 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3000 > /dev/null || exit 1" ]
+      test: [ "CMD", "curl", "-f", "http://127.0.0.1:3000/" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -78,10 +78,8 @@ services:
       # SSL certs — mount certbot output here
       - ./ssl:/etc/nginx/ssl:ro
     depends_on:
-      frontend:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
+      - frontend
+      - backend
 
 volumes:
   postgres_data:
