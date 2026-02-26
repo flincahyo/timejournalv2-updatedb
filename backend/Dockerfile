@@ -5,15 +5,18 @@ FROM python:3.11-slim
 # Install Wine prerequisites
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-        wine wine32 wine64 \
-        winetricks \
-        wget \
-        cabextract \
-        xvfb \
-        libglib2.0-0 \
-        libgomp1 \
-        && rm -rf /var/lib/apt/lists/*
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    wine \
+    wine32:i386 \
+    wine64 \
+    winetricks \
+    wget \
+    cabextract \
+    xvfb \
+    libglib2.0-0 \
+    libgomp1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set Wine environment
 ENV WINEPREFIX=/root/.wine
