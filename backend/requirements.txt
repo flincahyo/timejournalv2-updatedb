@@ -13,5 +13,5 @@ passlib[bcrypt]>=1.7.4
 python-jose[cryptography]>=3.3.0
 # AI
 openai>=1.0.0
-# Windows only - for live MT5:
-# MetaTrader5>=5.0.45
+# Windows & Linux (via Wine)
+MetaTrader5>=5.0.45

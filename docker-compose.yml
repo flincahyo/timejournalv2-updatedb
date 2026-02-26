@@ -23,7 +23,7 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: ../Dockerfile.backend
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-timejournal}:${POSTGRES_PASSWORD:-timejournal}@postgres:5432/${POSTGRES_DB:-timejournal}
@@ -31,6 +31,7 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       XAI_API_KEY: ${XAI_API_KEY:-}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      MT5_TERMINAL_PATH: ${MT5_TERMINAL_PATH:-}
     volumes:
       # Mount Wine prefix with pre-installed MT5 terminal
       - wine_prefix:/root/.wine
@@ -38,23 +39,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    # No public port — accessed only via nginx
 
-    # ── Next.js Frontend ─────────────────────────────────────────────────────────
+  # ── Next.js Frontend ─────────────────────────────────────────────────────────
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
+      dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://backend:8000}
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-}
     restart: unless-stopped
     environment:
       NODE_ENV: production
     depends_on:
       - backend
-    # No public port — accessed only via nginx
 
-    # ── Nginx Reverse Proxy ───────────────────────────────────────────────────────
+  # ── Nginx Reverse Proxy ───────────────────────────────────────────────────────
   nginx:
     image: nginx:alpine
     restart: unless-stopped
@@ -62,7 +61,7 @@ services:
       - "${NGINX_HTTP_PORT:-80}:80"
       - "${NGINX_HTTPS_PORT:-443}:443"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./backend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       # SSL certs — mount certbot output here
       - ./ssl:/etc/nginx/ssl:ro
     depends_on:

@@ -170,7 +170,16 @@ if not MT5_AVAILABLE:
     send({"type": "error", "message": "MetaTrader5 not available in this environment"})
     sys.exit(1)
 
-if not mt5.initialize(login=args.login, password=args.password, server=args.server):
+terminal_path = os.environ.get("MT5_TERMINAL_PATH")
+init_kwargs = {
+    "login": args.login,
+    "password": args.password,
+    "server": args.server
+}
+if terminal_path:
+    init_kwargs["path"] = terminal_path
+
+if not mt5.initialize(**init_kwargs):
     err = mt5.last_error()
     send({"type": "error", "message": f"MT5 init failed: {err}"})
     sys.exit(1)
