@@ -11,8 +11,8 @@ RUN dpkg --add-architecture i386 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
     gnupg wget ca-certificates && \
-    wget -nc https://dl.winehq.org/wine-builds/winehq.key && \
-    gpg -o /etc/apt/trusted.gpg.d/winehq.key.gpg --dearmor winehq.key && \
+    wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
+    gpg --dearmor -o /etc/apt/trusted.gpg.d/winehq.key.gpg && \
     echo "deb [signed-by=/etc/apt/trusted.gpg.d/winehq.key.gpg] https://dl.winehq.org/wine-builds/ubuntu/ jammy main" \
     > /etc/apt/sources.list.d/winehq.list && \
     apt-get update && \
@@ -22,7 +22,7 @@ RUN dpkg --add-architecture i386 && \
     python3 python3-pip python3-dev build-essential \
     libglib2.0-0 libgomp1 unzip cabextract && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/* winehq.key
+    rm -rf /var/lib/apt/lists/*
 
 # Set Wine environment
 ENV WINEPREFIX=/root/.wine
