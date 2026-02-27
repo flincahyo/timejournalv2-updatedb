@@ -330,12 +330,11 @@ async def connect_mt5(
     print(f"DEBUG MT5: Starting worker for {user.id}, login {req.login}")
     # Start MT5 worker subprocess for this user
     await mt5_manager.connect(
-        user_id=user.id,
+        user_id=str(user.id),
         login=req.login,
         password=req.password,
         server=req.server,
-        callback=on_mt5_message,
-        interval=10,
+        on_data=on_mt5_message,
     )
     print(f"DEBUG MT5: Worker started for {user.id}")
 
@@ -384,12 +383,11 @@ async def mt5_status(user: User = Depends(get_current_user), db: AsyncSession = 
         if password:
             try:
                 await mt5_manager.connect(
-                    user_id=user.id,
+                    user_id=str(user.id),
                     login=conn.login,
                     password=password,
                     server=conn.server,
-                    callback=on_mt5_message,
-                    interval=10,
+                    on_data=on_mt5_message,
                 )
                 is_connected = True
             except Exception as e:
