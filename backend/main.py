@@ -24,6 +24,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+from sqlalchemy import delete
 
 # Local imports
 from database import init_db, get_db, User, MT5Connection, Trade, JournalNote, JournalTag, DailyTag, Alert, UserSettings
@@ -312,6 +313,11 @@ async def connect_mt5(
     )
     conn = result.scalar_one_or_none()
     if conn:
+        # ── If login changed, clear stale trades from old account ──────────
+        if conn.login != req.login:
+            print(f"DEBUG MT5: Login changed {conn.login} → {req.login}, clearing old trades")
+            await db.execute(delete(Trade).where(Trade.user_id == user.id))
+            await db.commit()
         conn.login = req.login
         conn.server = req.server
         conn.encrypted_password = encrypted_pw
