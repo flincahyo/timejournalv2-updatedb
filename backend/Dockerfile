@@ -6,21 +6,24 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Force IPv4 for apt (fixes exit code 100 on many VPS)
 RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
 
-# ── Step 0: Install Wine 9.x from WineHQ (Ubuntu repo only has old Wine 6) ──
+# ── Step 0a: Install base tools including gnupg (MUST be separate step) ──────
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-    gnupg wget ca-certificates && \
-    wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
+    gnupg wget ca-certificates \
+    xvfb xauth \
+    python3 python3-pip python3-dev build-essential \
+    libglib2.0-0 libgomp1 unzip cabextract && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# ── Step 0b: Add WineHQ repo and install Wine 9 (gnupg must exist first) ─────
+RUN wget -qO- https://dl.winehq.org/wine-builds/winehq.key | \
     gpg --dearmor -o /etc/apt/trusted.gpg.d/winehq.key.gpg && \
     echo "deb [signed-by=/etc/apt/trusted.gpg.d/winehq.key.gpg] https://dl.winehq.org/wine-builds/ubuntu/ jammy main" \
     > /etc/apt/sources.list.d/winehq.list && \
     apt-get update && \
     apt-get install -y --install-recommends winehq-stable && \
-    apt-get install -y --no-install-recommends \
-    xvfb xauth \
-    python3 python3-pip python3-dev build-essential \
-    libglib2.0-0 libgomp1 unzip cabextract && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
