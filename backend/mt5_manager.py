@@ -164,20 +164,27 @@ parser.add_argument("--login", type=int, required=True)
 parser.add_argument("--password", required=True)
 parser.add_argument("--server", required=True)
 parser.add_argument("--interval", type=int, default=10)
+parser.add_argument("--terminal_path", default="", help="Path to terminal64.exe")
 args = parser.parse_args()
 
 if not MT5_AVAILABLE:
     send({"type": "error", "message": "MetaTrader5 not available in this environment"})
     sys.exit(1)
 
-terminal_path = os.environ.get("MT5_TERMINAL_PATH")
+# Resolve terminal path: CLI arg > env var > default portable path
+terminal_path = args.terminal_path or os.environ.get("MT5_TERMINAL_PATH", "")
+if not terminal_path:
+    terminal_path = "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+
 init_kwargs = {
     "login": args.login,
     "password": args.password,
-    "server": args.server
+    "server": args.server,
+    "path": terminal_path,
+    "timeout": 60000,  # 60s timeout for connection
 }
-if terminal_path:
-    init_kwargs["path"] = terminal_path
+
+send({"type": "info", "message": f"Connecting to MT5 terminal at: {terminal_path}"})
 
 if not mt5.initialize(**init_kwargs):
     err = mt5.last_error()
@@ -261,26 +268,34 @@ class MT5WorkerProcess:
         env = os.environ.copy()
         env["DISPLAY"] = os.environ.get("DISPLAY", ":99")
         env["WINEPREFIX"] = os.environ.get("WINEPREFIX", "/root/.wine")
-        # Disable some wine popups/logs to keep it clean, force native UCRT
         env["WINEDEBUG"] = "-all"
-        env["WINEDLLOVERRIDES"] = "mscoree,mshtml=n;ucrtbase,vcruntime140=n,v"
+        env["WINEDLLOVERRIDES"] = "mscoree,mshtml=n"
 
-        # On Linux, we must run the worker script via Wine's Windows Python
+        # Resolve terminal path (set in Dockerfile as ENV MT5_TERMINAL_PATH)
+        terminal_path = os.environ.get(
+            "MT5_TERMINAL_PATH",
+            "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+        )
+
+        # On Linux, run the worker script via Wine's embedded Windows Python
         executable = sys.executable
-        args = [script_path]
-        
+        script_args = [script_path]
+
         if sys.platform == "linux":
-            # Using the explicit path to the embeddable Python 3.11 we just installed
             executable = "wine"
-            args = ["C:\\python311\\python.exe", script_path]
-            logger.info(f"Linux detected: Using Wine to launch worker. Path: C:\\python311\\python.exe, Prefix: {env['WINEPREFIX']}")
+            script_args = ["C:\\python311\\python.exe", script_path]
+            logger.info(
+                f"Linux: Using Wine to launch MT5 worker. "
+                f"Terminal: {terminal_path}, Prefix: {env['WINEPREFIX']}"
+            )
 
         self._proc = await asyncio.create_subprocess_exec(
-            executable, *args,
+            executable, *script_args,
             "--login", str(self.login),
             "--password", self.password,
             "--server", self.server,
             "--interval", str(self.interval),
+            "--terminal_path", terminal_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,

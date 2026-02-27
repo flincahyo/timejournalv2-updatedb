@@ -136,13 +136,27 @@ parser.add_argument("--login", type=int, required=True)
 parser.add_argument("--password", required=True)
 parser.add_argument("--server", required=True)
 parser.add_argument("--interval", type=int, default=10)
+parser.add_argument("--terminal_path", default="", help="Path to terminal64.exe")
 args = parser.parse_args()
 
 if not MT5_AVAILABLE:
     send({"type": "error", "message": "MetaTrader5 not available in this environment"})
     sys.exit(1)
 
-if not mt5.initialize(login=args.login, password=args.password, server=args.server):
+# Resolve terminal path: CLI arg > env var > default portable path
+terminal_path = args.terminal_path or os.environ.get("MT5_TERMINAL_PATH", "")
+if not terminal_path:
+    terminal_path = "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+
+send({"type": "info", "message": f"Connecting to MT5 terminal at: {terminal_path}"})
+
+if not mt5.initialize(
+    login=args.login,
+    password=args.password,
+    server=args.server,
+    path=terminal_path,
+    timeout=60000,
+):
     err = mt5.last_error()
     send({"type": "error", "message": f"MT5 init failed: {err}"})
     sys.exit(1)
