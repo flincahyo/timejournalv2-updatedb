@@ -1,19 +1,25 @@
-# Base: Python 3.11 Bullseye (Stable for Wine)
-FROM python:3.11-bullseye
+# Base: Ubuntu 22.04 (Stables for Wine + Python)
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Force IPv4 for apt (fixes exit code 100 on many VPS)
 RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
 
-# Install Wine and prerequisites
+# Install Wine, Xvfb, and Python 3
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    wine \
-    wine32:i386 \
+    apt-get install -y --no-install-recommends \
     wine64 \
+    wine32 \
     xvfb \
+    xauth \
     wget \
     ca-certificates \
+    python3 \
+    python3-pip \
+    python3-dev \
+    build-essential \
     libglib2.0-0 \
     libgomp1 && \
     apt-get clean && \
@@ -27,10 +33,9 @@ ENV DISPLAY=:99
 WORKDIR /app
 
 # Copy and install native Linux dependencies
-# (MetaTrader5 removed from here to avoid build failure)
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir -r requirements.txt
 
 # Copy backend code
 COPY . .
@@ -40,11 +45,7 @@ RUN mkdir -p /app/data
 
 EXPOSE 8000
 
-# Note: Windows Python and MT5 library must be installed inside Wine.
-# This is usually done via terminal once the container is running
-# to ensure the persistent volume is used.
-
 # Start virtual display + backend
 CMD Xvfb :99 -screen 0 1024x768x16 & \
     sleep 2 && \
-    uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
+    python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
