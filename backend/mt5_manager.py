@@ -81,14 +81,14 @@ class MT5BridgeWorker:
                 logger.info(f"MT5 connected for user {self.user_id}: {self._account_info}")
 
                 if self.on_data:
-                    await self.on_data({
+                    await self.on_data(self.user_id, {
                         "type": "connected",
                         "account": self._account_info,
                     })
         except Exception as e:
             logger.error(f"MT5 bridge connect failed for user {self.user_id}: {e}")
-            if self.on_error:
-                await self.on_error(str(e))
+            if self.on_data:
+                await self.on_data(self.user_id, {"type": "error", "message": str(e)})
             return
 
         # Step 2: Initial full sync
@@ -131,8 +131,8 @@ class MT5BridgeWorker:
                 break
             except Exception as e:
                 logger.error(f"Poll error for user {self.user_id}: {e}")
-                if self.on_error:
-                    await self.on_error(str(e))
+                if self.on_data:
+                    await self.on_data(self.user_id, {"type": "error", "message": str(e)})
 
     async def _sync_all(self):
         """Fetch trades + positions + account and emit callbacks."""
@@ -153,21 +153,24 @@ class MT5BridgeWorker:
         elif trades_resp.status_code == 200:
             payload = trades_resp.json()
             if self.on_data:
-                await self.on_data({"type": "trades", "trades": payload.get("trades", [])})
+                # Use "all_trades" to match main.py on_mt5_message handler
+                await self.on_data(self.user_id, {"type": "all_trades", "trades": payload.get("trades", [])})
 
         if isinstance(pos_resp, Exception):
             logger.error(f"Positions fetch error: {pos_resp}")
         elif pos_resp.status_code == 200:
             payload = pos_resp.json()
             if self.on_data:
-                await self.on_data({"type": "positions", "positions": payload.get("positions", [])})
+                # Use "live_trades" to match main.py on_mt5_message handler
+                await self.on_data(self.user_id, {"type": "live_trades", "trades": payload.get("positions", [])})
 
         if isinstance(acc_resp, Exception):
             logger.error(f"Account fetch error: {acc_resp}")
         elif acc_resp.status_code == 200:
             self._account_info = acc_resp.json()
             if self.on_data:
-                await self.on_data({"type": "account", "account": self._account_info})
+                # Use "account_update" to match main.py on_mt5_message handler
+                await self.on_data(self.user_id, {"type": "account_update", "account": self._account_info})
 
     @property
     def is_connected(self) -> bool:
@@ -273,6 +276,10 @@ class MT5BridgeManager:
     async def shutdown(self):
         for user_id in list(self._workers.keys()):
             await self.disconnect(user_id)
+
+    # Alias used by main.py lifespan
+    async def shutdown_all(self):
+        await self.shutdown()
 
 
 # ── Global singleton ──────────────────────────────────────────────────────────
