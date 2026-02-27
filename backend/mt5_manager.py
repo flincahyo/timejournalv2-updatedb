@@ -1,371 +1,217 @@
 """
 backend/mt5_manager.py
-Per-user MT5 subprocess manager.
+Per-user MT5 manager via HTTP bridge (Windows MT5 Bridge Server).
 
 Architecture:
-  - MT5WorkerManager: singleton that manages {user_id -> MT5WorkerProcess}
-  - MT5WorkerProcess: spawns a child Python process that connects to MT5,
-    polls trades/positions, and sends JSON lines to parent via stdout pipe.
-  - Parent reads lines async and calls registered callbacks to broadcast
-    data to the user's WebSocket connections.
+  - MT5BridgeManager: singleton that manages {user_id -> MT5BridgeWorker}
+  - MT5BridgeWorker: polls the Windows MT5 Bridge HTTP server periodically,
+    calls registered callbacks to broadcast data to user's WebSocket connections.
 
-Why subprocesses?
-  The MetaTrader5 Python library maintains ONE global MT5 connection per
-  Python process. Separate processes = separate MT5 connections = true
-  per-user concurrent sync.
+Why HTTP bridge instead of Wine subprocess?
+  The Windows MT5 Bridge server runs natively on Windows with MetaTrader5,
+  bypassing all Linux/Wine compatibility issues. The bridge exposes a REST API
+  that this manager polls every N seconds.
 """
 
 import asyncio
-import json
-import os
-import sys
-import subprocess
 import logging
+import os
 from typing import Callable, Optional
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
-# ── Worker script (runs inside each subprocess) ─────────────────────────────
-_WORKER_SCRIPT = """
-import sys
-import json
-import time
-import datetime
-import pytz
+# ── Bridge config from environment ───────────────────────────────────────────
+BRIDGE_URL = os.getenv("MT5_BRIDGE_URL", "http://localhost:8765").rstrip("/")
+BRIDGE_API_KEY = os.getenv("MT5_BRIDGE_API_KEY", "changeme_secret_key_123")
+POLL_INTERVAL = int(os.getenv("MT5_POLL_INTERVAL", "10"))  # seconds
 
-WIB = pytz.timezone("Asia/Jakarta")
 
-try:
-    import MetaTrader5 as mt5
-    MT5_AVAILABLE = True
-except ImportError:
-    MT5_AVAILABLE = False
+def _bridge_headers() -> dict:
+    return {"x-api-key": BRIDGE_API_KEY, "Content-Type": "application/json"}
 
-def to_wib_iso(ts: int) -> str:
-    utc = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
-    return utc.astimezone(WIB).isoformat()
 
-def to_utc_iso(ts: int) -> str:
-    return datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).isoformat()
-
-def detect_session(utc_dt):
-    import pytz as _pytz
-    LDN = _pytz.timezone("Europe/London")
-    NY  = _pytz.timezone("America/New_York")
-    if utc_dt.tzinfo is None:
-        utc_dt = utc_dt.replace(tzinfo=datetime.timezone.utc)
-    lh = utc_dt.astimezone(LDN).hour
-    nh = utc_dt.astimezone(NY).hour
-    if 8 <= lh < 17 and 8 <= nh < 17: return "Overlap (LDN+NY)"
-    if 8 <= lh < 17: return "London"
-    if 8 <= nh < 17: return "New York"
-    if 0 <= utc_dt.hour < 9: return "Tokyo"
-    return "Sydney"
-
-def calc_pips(symbol, open_p, close_p, direction):
-    diff = (close_p - open_p) if direction == "BUY" else (open_p - close_p)
-    s = symbol.upper()
-    if "JPY" in s: pip = 0.01
-    elif any(x in s for x in ["XAU","GOLD"]): pip = 0.1
-    elif any(x in s for x in ["XAG","SILVER"]): pip = 0.01
-    elif any(x in s for x in ["BTC","BITCOIN"]): pip = 1.0
-    elif any(x in s for x in ["ETH","ETHEREUM"]): pip = 0.1
-    elif any(x in s for x in ["NAS","US100","DOW","US30"]): pip = 1.0
-    elif any(x in s for x in ["SPX","US500"]): pip = 0.1
-    elif any(x in s for x in ["DAX","GER"]): pip = 1.0
-    elif any(x in s for x in ["OIL","WTI"]): pip = 0.01
-    else: pip = 0.0001
-    return round(diff / pip, 1) if pip else 0.0
-
-def send(msg: dict):
-    print(json.dumps(msg), flush=True)
-
-def position_to_trade(pos):
-    utc = datetime.datetime.fromtimestamp(pos.time, tz=datetime.timezone.utc)
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
-    dur = int((now - utc).total_seconds() * 1000)
-    direction = "BUY" if pos.type == 0 else "SELL"
-    pips = calc_pips(pos.symbol, pos.price_open, pos.price_current, direction)
-    return {
-        "id": f"live_{pos.ticket}", "ticket": pos.ticket,
-        "symbol": pos.symbol, "type": direction,
-        "lots": round(pos.volume, 2),
-        "openTime": to_utc_iso(pos.time), "openTimeWIB": to_wib_iso(pos.time),
-        "closeTime": now.isoformat(), "closeTimeWIB": datetime.datetime.now(tz=WIB).isoformat(),
-        "openPrice": pos.price_open, "closePrice": pos.price_current,
-        "sl": pos.sl, "tp": pos.tp,
-        "pnl": round(pos.profit, 2), "pips": pips,
-        "swap": round(pos.swap, 2), "commission": 0.0, "rr": 0.0,
-        "session": detect_session(utc), "setup": "Live Position", "emotion": "Neutral",
-        "status": "live", "closeType": "all", "durationMs": dur, "isIntraday": True,
-    }
-
-def deal_to_trade(deal):
-    if not hasattr(deal, "entry") or deal.entry != 1: return None
-    if deal.type not in (0, 1): return None
-    direction = "BUY" if deal.type == 1 else "SELL"
-    open_ts = deal.time
-    open_price = deal.price
-    try:
-        pos_deals = mt5.history_deals_get(position=deal.position_id) or []
-        for d in pos_deals:
-            if d.entry == 0:
-                open_ts = d.time; open_price = d.price; break
-    except: pass
-    open_utc = datetime.datetime.fromtimestamp(open_ts, tz=datetime.timezone.utc)
-    close_utc = datetime.datetime.fromtimestamp(deal.time, tz=datetime.timezone.utc)
-    dur = max(int((close_utc - open_utc).total_seconds() * 1000), 0)
-    sym = deal.symbol or ""
-    pips = calc_pips(sym, open_price, deal.price, direction)
-    close_type = "manually_closed"
-    reason = getattr(deal, "reason", 0)
-    comment = getattr(deal, "comment", "").lower()
-    if reason == 4 or "sl" in comment: close_type = "stopped_out"
-    elif reason == 5 or "tp" in comment: close_type = "target_hit"
-    order_info = None
-    try:
-        orders = mt5.history_orders_get(position=deal.position_id) or []
-        if orders: order_info = orders[-1]
-    except: pass
-    sl = getattr(order_info, "sl", 0.0) if order_info else 0.0
-    tp = getattr(order_info, "tp", 0.0) if order_info else 0.0
-    if close_type == "manually_closed" and order_info and deal.price > 0:
-        tol = deal.price * 0.002
-        if sl > 0 and abs(deal.price - sl) <= tol: close_type = "stopped_out"
-        elif tp > 0 and abs(deal.price - tp) <= tol: close_type = "target_hit"
-    rr = 0.0
-    if sl > 0 and tp > 0 and deal.price != 0:
-        rr = round(abs(tp - deal.price) / max(abs(deal.price - sl), 0.00001), 2)
-    return {
-        "id": str(deal.ticket), "ticket": deal.ticket, "symbol": sym, "type": direction,
-        "lots": round(deal.volume, 2),
-        "openTime": to_utc_iso(open_ts), "openTimeWIB": to_wib_iso(open_ts),
-        "closeTime": to_utc_iso(deal.time), "closeTimeWIB": to_wib_iso(deal.time),
-        "openPrice": open_price, "closePrice": deal.price,
-        "sl": sl, "tp": tp, "pnl": round(deal.profit, 2), "pips": pips,
-        "swap": round(deal.swap, 2), "commission": round(deal.commission, 2), "rr": rr,
-        "session": detect_session(open_utc), "setup": "MT5 Import", "emotion": "Neutral",
-        "status": "closed", "closeType": close_type, "durationMs": dur, "isIntraday": dur < 86400000,
-    }
-
-def get_account(login):
-    acc = mt5.account_info()
-    if not acc: return {}
-    return {
-        "login": acc.login, "name": acc.name, "server": acc.server,
-        "balance": acc.balance, "equity": acc.equity, "margin": acc.margin,
-        "freeMargin": acc.margin_free, "profit": acc.profit,
-        "currency": acc.currency, "leverage": acc.leverage,
-    }
-
-import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument("--login", type=int, required=True)
-parser.add_argument("--password", required=True)
-parser.add_argument("--server", required=True)
-parser.add_argument("--interval", type=int, default=10)
-parser.add_argument("--terminal_path", default="", help="Path to terminal64.exe")
-args = parser.parse_args()
-
-if not MT5_AVAILABLE:
-    send({"type": "error", "message": "MetaTrader5 not available in this environment"})
-    sys.exit(1)
-
-# Resolve terminal path: CLI arg > env var > default portable path
-terminal_path = args.terminal_path or os.environ.get("MT5_TERMINAL_PATH", "")
-if not terminal_path:
-    terminal_path = "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
-
-init_kwargs = {
-    "login": args.login,
-    "password": args.password,
-    "server": args.server,
-    "path": terminal_path,
-    "timeout": 60000,  # 60s timeout for connection
-}
-
-send({"type": "info", "message": f"Connecting to MT5 terminal at: {terminal_path}"})
-
-if not mt5.initialize(**init_kwargs):
-    err = mt5.last_error()
-    send({"type": "error", "message": f"MT5 init failed: {err}"})
-    sys.exit(1)
-
-send({"type": "connected", "account": get_account(args.login)})
-
-# Initial full history fetch - send in batches to avoid pipe limit issues
-date_from = datetime.datetime(2000, 1, 1)
-date_to = datetime.datetime.now() + datetime.timedelta(hours=1)
-deals = mt5.history_deals_get(date_from, date_to) or []
-
-known_ids = set()
-batch = []
-for deal in deals:
-    t = deal_to_trade(deal)
-    if t: 
-        known_ids.add(t["id"])
-        batch.append(t)
-        if len(batch) >= 50:
-            send({"type": "history_batch", "trades": batch})
-            batch = []
-if batch:
-    send({"type": "history_batch", "trades": batch})
-
-# Live polling loop
-while True:
-    time.sleep(args.interval)
-    try:
-        # Account update
-        acc = get_account(args.login)
-        send({"type": "account_update", "account": acc})
-
-        # Live positions
-        positions = mt5.positions_get() or []
-        live = [position_to_trade(p) for p in positions]
-        send({"type": "live_trades", "trades": live})
-
-        # New closed trades
-        from_dt = datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(hours=1)
-        to_dt = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(hours=1)
-        recent_deals = mt5.history_deals_get(from_dt, to_dt) or []
-        for deal in recent_deals:
-            t = deal_to_trade(deal)
-            if t and t["id"] not in known_ids:
-                known_ids.add(t["id"])
-                send({"type": "new_trade", "trade": t})
-    except Exception as e:
-        send({"type": "error", "message": str(e)})
-"""
-
-# ── MT5WorkerProcess ─────────────────────────────────────────────────────────
-class MT5WorkerProcess:
-    def __init__(self, user_id: str, login: int, password: str, server: str, interval: int = 10):
+# ── Single worker per user ────────────────────────────────────────────────────
+class MT5BridgeWorker:
+    def __init__(
+        self,
+        user_id: str,
+        login: int,
+        password: str,
+        server: str,
+        interval: int = POLL_INTERVAL,
+        on_data: Optional[Callable] = None,
+        on_error: Optional[Callable] = None,
+    ):
         self.user_id = user_id
         self.login = login
         self.password = password
         self.server = server
         self.interval = interval
-        self._proc: Optional[subprocess.Popen] = None
+        self.on_data = on_data
+        self.on_error = on_error
+
         self._task: Optional[asyncio.Task] = None
-        self._callbacks: list[Callable] = []
-
-    def add_callback(self, cb: Callable):
-        """Register a callback(user_id, msg_dict) for incoming messages."""
-        self._callbacks.append(cb)
-
-    def remove_callback(self, cb: Callable):
-        if cb in self._callbacks:
-            self._callbacks.remove(cb)
+        self._running = False
+        self._connected = False
+        self._account_info: dict = {}
 
     async def start(self):
-        """Spawn the worker subprocess and start reading its output."""
-        script_path = os.path.join(os.path.dirname(__file__), "_mt5_worker_script.py")
-        # Write worker script to disk
-        with open(script_path, "w", encoding="utf-8") as f:
-            f.write(_WORKER_SCRIPT)
+        """Connect to MT5 via bridge and start polling loop."""
+        logger.info(f"MT5BridgeWorker starting for user {self.user_id} via {BRIDGE_URL}")
 
-        # Prepare environment for the subprocess
-        env = os.environ.copy()
-        env["DISPLAY"] = os.environ.get("DISPLAY", ":99")
-        env["WINEPREFIX"] = os.environ.get("WINEPREFIX", "/root/.wine")
-        env["WINEDEBUG"] = "-all"
-        env["WINEDLLOVERRIDES"] = "mscoree,mshtml=n"
-
-        # Resolve terminal path (set in Dockerfile as ENV MT5_TERMINAL_PATH)
-        terminal_path = os.environ.get(
-            "MT5_TERMINAL_PATH",
-            "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
-        )
-
-        # On Linux, run the worker script via Wine's embedded Windows Python
-        executable = sys.executable
-        script_args = [script_path]
-
-        if sys.platform == "linux":
-            executable = "wine"
-            script_args = ["C:\\python311\\python.exe", script_path]
-            logger.info(
-                f"Linux: Using Wine to launch MT5 worker. "
-                f"Terminal: {terminal_path}, Prefix: {env['WINEPREFIX']}"
-            )
-
-        self._proc = await asyncio.create_subprocess_exec(
-            executable, *script_args,
-            "--login", str(self.login),
-            "--password", self.password,
-            "--server", self.server,
-            "--interval", str(self.interval),
-            "--terminal_path", terminal_path,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
-        self._task = asyncio.create_task(self._read_loop())
-        logger.info(f"MT5 worker started for user {self.user_id} (pid={self._proc.pid})")
-
-    async def _read_loop(self):
-        """Read JSON lines from worker stdout and dispatch to callbacks."""
+        # Step 1: Connect
         try:
-            # Create a task to log stderr for debugging
-            stderr_task = asyncio.create_task(self._read_stderr())
-            
-            while self._proc and self._proc.stdout:
-                line = await self._proc.stdout.readline()
-                if not line:
-                    break
-                try:
-                    msg = json.loads(line.decode().strip())
-                    for cb in list(self._callbacks):
-                        try:
-                            await cb(self.user_id, msg)
-                        except Exception as e:
-                            logger.error(f"MT5 callback error: {e}")
-                except json.JSONDecodeError:
-                    pass
-            
-            await stderr_task
-        except Exception as e:
-            logger.error(f"MT5 read loop error for user {self.user_id}: {e}")
-        logger.info(f"MT5 worker read loop ended for user {self.user_id}")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    f"{BRIDGE_URL}/connect",
+                    json={
+                        "user_id": self.user_id,
+                        "login": self.login,
+                        "password": self.password,
+                        "server": self.server,
+                    },
+                    headers=_bridge_headers(),
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                self._account_info = data.get("account", {})
+                self._connected = True
+                logger.info(f"MT5 connected for user {self.user_id}: {self._account_info}")
 
-    async def _read_stderr(self):
-        """Read and log stderr from the subprocess."""
-        try:
-            while self._proc and self._proc.stderr:
-                line = await self._proc.stderr.readline()
-                if not line:
-                    break
-                logger.error(f"MT5 Worker {self.user_id} STDERR: {line.decode().strip()}")
+                if self.on_data:
+                    await self.on_data({
+                        "type": "connected",
+                        "account": self._account_info,
+                    })
         except Exception as e:
-            logger.error(f"MT5 stderr read loop error: {e}")
+            logger.error(f"MT5 bridge connect failed for user {self.user_id}: {e}")
+            if self.on_error:
+                await self.on_error(str(e))
+            return
+
+        # Step 2: Initial full sync
+        await self._sync_all()
+
+        # Step 3: Start polling loop
+        self._running = True
+        self._task = asyncio.create_task(self._poll_loop())
 
     async def stop(self):
+        """Disconnect and stop polling."""
+        self._running = False
         if self._task:
             self._task.cancel()
             try:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        if self._proc:
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.delete(
+                    f"{BRIDGE_URL}/disconnect",
+                    params={"user_id": self.user_id},
+                    headers=_bridge_headers(),
+                )
+        except Exception as e:
+            logger.warning(f"Bridge disconnect error for {self.user_id}: {e}")
+
+        self._connected = False
+        logger.info(f"MT5BridgeWorker stopped for user {self.user_id}")
+
+    async def _poll_loop(self):
+        """Periodic polling of trades, positions, account."""
+        while self._running:
             try:
-                self._proc.terminate()
-                await asyncio.wait_for(self._proc.wait(), timeout=5.0)
-            except Exception:
-                self._proc.kill()
-        self._proc = None
-        logger.info(f"MT5 worker stopped for user {self.user_id}")
+                await asyncio.sleep(self.interval)
+                await self._sync_all()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Poll error for user {self.user_id}: {e}")
+                if self.on_error:
+                    await self.on_error(str(e))
+
+    async def _sync_all(self):
+        """Fetch trades + positions + account and emit callbacks."""
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            params = {"user_id": self.user_id}
+            headers = _bridge_headers()
+
+            # Fetch all in parallel
+            trades_resp, pos_resp, acc_resp = await asyncio.gather(
+                client.get(f"{BRIDGE_URL}/trades", params=params, headers=headers),
+                client.get(f"{BRIDGE_URL}/positions", params=params, headers=headers),
+                client.get(f"{BRIDGE_URL}/account", params=params, headers=headers),
+                return_exceptions=True,
+            )
+
+        if isinstance(trades_resp, Exception):
+            logger.error(f"Trades fetch error: {trades_resp}")
+        elif trades_resp.status_code == 200:
+            payload = trades_resp.json()
+            if self.on_data:
+                await self.on_data({"type": "trades", "trades": payload.get("trades", [])})
+
+        if isinstance(pos_resp, Exception):
+            logger.error(f"Positions fetch error: {pos_resp}")
+        elif pos_resp.status_code == 200:
+            payload = pos_resp.json()
+            if self.on_data:
+                await self.on_data({"type": "positions", "positions": payload.get("positions", [])})
+
+        if isinstance(acc_resp, Exception):
+            logger.error(f"Account fetch error: {acc_resp}")
+        elif acc_resp.status_code == 200:
+            self._account_info = acc_resp.json()
+            if self.on_data:
+                await self.on_data({"type": "account", "account": self._account_info})
 
     @property
-    def is_running(self) -> bool:
-        return self._proc is not None and self._proc.returncode is None
+    def is_connected(self) -> bool:
+        return self._connected
+
+    @property
+    def account_info(self) -> dict:
+        return self._account_info
+
+    async def get_trades(self) -> list:
+        """Fetch trades on demand."""
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                resp = await client.get(
+                    f"{BRIDGE_URL}/trades",
+                    params={"user_id": self.user_id},
+                    headers=_bridge_headers(),
+                )
+                resp.raise_for_status()
+                return resp.json().get("trades", [])
+        except Exception as e:
+            logger.error(f"get_trades error: {e}")
+            return []
+
+    async def get_positions(self) -> list:
+        """Fetch live positions on demand."""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    f"{BRIDGE_URL}/positions",
+                    params={"user_id": self.user_id},
+                    headers=_bridge_headers(),
+                )
+                resp.raise_for_status()
+                return resp.json().get("positions", [])
+        except Exception as e:
+            logger.error(f"get_positions error: {e}")
+            return []
 
 
-# ── MT5WorkerManager ─────────────────────────────────────────────────────────
-class MT5WorkerManager:
-    """Singleton that manages per-user MT5 worker subprocesses."""
-
+# ── Manager singleton ─────────────────────────────────────────────────────────
+class MT5BridgeManager:
     def __init__(self):
-        self._workers: dict[str, MT5WorkerProcess] = {}
+        self._workers: dict[str, MT5BridgeWorker] = {}
 
     async def connect(
         self,
@@ -373,41 +219,61 @@ class MT5WorkerManager:
         login: int,
         password: str,
         server: str,
-        callback: Callable,
-        interval: int = 10,
-    ) -> MT5WorkerProcess:
-        """Start (or reuse) a worker for this user."""
-        if user_id in self._workers:
-            worker = self._workers[user_id]
-            if worker.is_running:
-                worker.add_callback(callback)
-                return worker
-            else:
-                await worker.stop()
+        on_data: Optional[Callable] = None,
+        on_error: Optional[Callable] = None,
+    ) -> MT5BridgeWorker:
+        # Disconnect existing if any
+        await self.disconnect(user_id)
 
-        worker = MT5WorkerProcess(user_id, login, password, server, interval)
-        worker.add_callback(callback)
+        worker = MT5BridgeWorker(
+            user_id=user_id,
+            login=login,
+            password=password,
+            server=server,
+            on_data=on_data,
+            on_error=on_error,
+        )
         self._workers[user_id] = worker
         await worker.start()
         return worker
 
     async def disconnect(self, user_id: str):
-        if user_id in self._workers:
-            await self._workers[user_id].stop()
-            del self._workers[user_id]
+        worker = self._workers.pop(user_id, None)
+        if worker:
+            await worker.stop()
 
-    def get_worker(self, user_id: str) -> Optional[MT5WorkerProcess]:
+    def get_worker(self, user_id: str) -> Optional[MT5BridgeWorker]:
         return self._workers.get(user_id)
 
     def is_connected(self, user_id: str) -> bool:
         w = self._workers.get(user_id)
-        return w is not None and w.is_running
+        return w.is_connected if w else False
 
-    async def shutdown_all(self):
-        for worker in list(self._workers.values()):
-            await worker.stop()
-        self._workers.clear()
+    def get_account_info(self, user_id: str) -> dict:
+        w = self._workers.get(user_id)
+        return w.account_info if w else {}
+
+    async def get_trades(self, user_id: str) -> list:
+        w = self._workers.get(user_id)
+        return await w.get_trades() if w else []
+
+    async def get_positions(self, user_id: str) -> list:
+        w = self._workers.get(user_id)
+        return await w.get_positions() if w else []
+
+    async def check_bridge_health(self) -> bool:
+        """Check if the MT5 Bridge server is reachable."""
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"{BRIDGE_URL}/health")
+                return resp.status_code == 200
+        except Exception:
+            return False
+
+    async def shutdown(self):
+        for user_id in list(self._workers.keys()):
+            await self.disconnect(user_id)
 
 
-# Singleton instance
-mt5_manager = MT5WorkerManager()
+# ── Global singleton ──────────────────────────────────────────────────────────
+mt5_manager = MT5BridgeManager()

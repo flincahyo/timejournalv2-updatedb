@@ -19,7 +19,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── FastAPI Backend (with Wine + MT5) ────────────────────────────────────────
+  # ── FastAPI Backend (MT5 via Windows Bridge) ────────────────────────────────
   backend:
     build:
       context: ./backend
@@ -31,10 +31,11 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       XAI_API_KEY: ${XAI_API_KEY:-}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
-      MT5_TERMINAL_PATH: ${MT5_TERMINAL_PATH:-}
+      # MT5 Bridge settings (set these in Coolify env vars)
+      MT5_BRIDGE_URL: ${MT5_BRIDGE_URL:-http://localhost:8765}
+      MT5_BRIDGE_API_KEY: ${MT5_BRIDGE_API_KEY:-changeme_secret_key_123}
+      MT5_POLL_INTERVAL: ${MT5_POLL_INTERVAL:-10}
     volumes:
-      # Mount Wine prefix with pre-installed MT5 terminal
-      - wine_prefix:/root/.wine
       - backend_data:/app/data
     ports:
       - "8001:8000"
@@ -95,5 +96,4 @@ services:
 
 volumes:
   postgres_data:
-  wine_prefix:
   backend_data:
