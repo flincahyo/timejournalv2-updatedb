@@ -257,15 +257,24 @@ class MT5WorkerProcess:
         with open(script_path, "w", encoding="utf-8") as f:
             f.write(_WORKER_SCRIPT)
 
+        # Prepare environment for the subprocess
+        env = os.environ.copy()
+        env["DISPLAY"] = os.environ.get("DISPLAY", ":99")
+        env["WINEPREFIX"] = os.environ.get("WINEPREFIX", "/root/.wine")
+        # Disable some wine popups/logs to keep it clean
+        env["WINEDEBUG"] = "-all"
+        env["WINEDLLOVERRIDES"] = "mscoree,mshtml=n"
+
         # On Linux, we must run the worker script via Wine's Windows Python
         executable = sys.executable
         args = [script_path]
         
         if sys.platform == "linux":
-            # Assuming 'python' in Wine is available as 'wine python' 
-            # or we point to the specific wine python path
+            # We try to use 'wine python' which relies on the PATH inside Wine.
+            # If that fails, we log the attempt clearly.
             executable = "wine"
             args = ["python", script_path]
+            logger.info(f"Linux detected: Using Wine to launch worker. Prefix: {env['WINEPREFIX']}")
 
         self._proc = await asyncio.create_subprocess_exec(
             executable, *args,
@@ -275,6 +284,7 @@ class MT5WorkerProcess:
             "--interval", str(self.interval),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
         self._task = asyncio.create_task(self._read_loop())
         logger.info(f"MT5 worker started for user {self.user_id} (pid={self._proc.pid})")
