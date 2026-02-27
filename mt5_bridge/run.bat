@@ -1,7 +1,7 @@
 @echo off
 title MT5 Bridge Server
 echo ============================================
-echo  MT5 Bridge Server - Starting...
+echo  MT5 Bridge Server - Local Network Mode
 echo ============================================
 echo.
 
@@ -11,56 +11,47 @@ if exist .env (
         if not "%%A"=="" if not "%%A:~0,1%"=="#" set "%%A=%%B"
     )
 ) else (
-    echo [WARN] File .env tidak ditemukan, menggunakan default.
+    echo [WARN] File .env tidak ditemukan!
     echo        Jalankan install.bat terlebih dahulu.
+    pause
+    exit /b 1
 )
 
-:: Default API key jika tidak di-.env
 if "%MT5_BRIDGE_API_KEY%"=="" set MT5_BRIDGE_API_KEY=changeme_secret_key_123
 if "%MT5_BRIDGE_PORT%"=="" set MT5_BRIDGE_PORT=8765
 
-echo [INFO] Port: %MT5_BRIDGE_PORT%
-echo [INFO] API Key: %MT5_BRIDGE_API_KEY%
+:: Get local IP
+for /f "tokens=2 delims=:" %%i in ('ipconfig ^| findstr /R /C:"IPv4 Address"') do set LOCAL_IP=%%i
+set LOCAL_IP=%LOCAL_IP: =%
+
+echo [INFO] Port     : %MT5_BRIDGE_PORT%
+echo [INFO] Local IP : %LOCAL_IP%
+echo [INFO] Bridge   : http://%LOCAL_IP%:%MT5_BRIDGE_PORT%
 echo.
 
-:: Start MT5 Bridge server in background window
-echo [1/2] Starting MT5 Bridge Server...
-start "MT5 Bridge" cmd /k "python app.py && pause"
-
-:: Wait for server to start
-timeout /t 3 /nobreak >nul
-
-:: Start ngrok if available
-ngrok version >nul 2>&1
-if not errorlevel 1 (
-    echo [2/2] Starting ngrok tunnel...
-    echo       Setelah ngrok terbuka, copy URL https://xxxx.ngrok-free.app
-    echo       Masukkan ke Coolify env var: MT5_BRIDGE_URL=https://xxxx.ngrok-free.app
-    echo.
-    start "ngrok tunnel" cmd /k "ngrok http %MT5_BRIDGE_PORT% && pause"
-    timeout /t 4 /nobreak >nul
-    echo.
-    echo =====================================================
-    echo  Bridge running at: http://localhost:%MT5_BRIDGE_PORT%
-    echo  Ngrok dashboard : http://localhost:4040
-    echo  Health check    : http://localhost:%MT5_BRIDGE_PORT%/health
-    echo.
-    echo  NEXT: Salin URL ngrok dan set di Coolify:
-    echo        Variable Name : MT5_BRIDGE_URL
-    echo        Variable Value: https://xxxx.ngrok-free.app
-    echo =====================================================
+:: Allow firewall rule (run as admin recommended)
+echo [1/2] Setting up Windows Firewall rule...
+netsh advfirewall firewall show rule name="MT5 Bridge" >nul 2>&1
+if errorlevel 1 (
+    netsh advfirewall firewall add rule name="MT5 Bridge" dir=in action=allow protocol=TCP localport=%MT5_BRIDGE_PORT% >nul 2>&1
+    echo [OK] Firewall rule added for port %MT5_BRIDGE_PORT%
 ) else (
-    echo [2/2] ngrok tidak ditemukan.
-    echo.
-    echo =====================================================
-    echo  Bridge running at: http://localhost:%MT5_BRIDGE_PORT%
-    echo  Health check    : http://localhost:%MT5_BRIDGE_PORT%/health
-    echo.
-    echo  Untuk akses dari internet, install ngrok:
-    echo  https://ngrok.com/download
-    echo  Atau gunakan IP lokal jika backend di network yang sama.
-    echo =====================================================
+    echo [OK] Firewall rule already exists.
 )
 
 echo.
+echo [2/2] Starting MT5 Bridge Server...
+echo.
+echo =====================================================
+echo  Bridge URL: http://%LOCAL_IP%:%MT5_BRIDGE_PORT%
+echo.
+echo  Set di Coolify Environment Variables:
+echo    MT5_BRIDGE_URL = http://%LOCAL_IP%:%MT5_BRIDGE_PORT%
+echo    MT5_BRIDGE_API_KEY = %MT5_BRIDGE_API_KEY%
+echo.
+echo  Health Check: http://%LOCAL_IP%:%MT5_BRIDGE_PORT%/health
+echo =====================================================
+echo.
+
+python app.py
 pause

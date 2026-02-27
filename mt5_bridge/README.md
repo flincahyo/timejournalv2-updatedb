@@ -1,24 +1,25 @@
-# MT5 Bridge Server — Setup Guide
+# MT5 Bridge Server — Local Network Setup
 
-Server Windows ringan yang menghubungkan MetaTrader 5 ke backend Linux (Coolify) via HTTP REST API.
+Server Windows ringan yang menghubungkan MetaTrader 5 ke backend Linux (Coolify) via HTTP REST API di jaringan lokal.
 
 ## Arsitektur
 
 ```
-[Windows Lokal / Server]              [Linux - Coolify]
-  MetaTrader 5 Terminal     ←────────   Backend FastAPI
-  + mt5_bridge/app.py                    (polling tiap 10 detik)
-  + ngrok tunnel ──────HTTP──────────→
+[Windows Server/PC - jaringan lokal]    [Linux - Coolify - jaringan lokal]
+  MetaTrader 5 Terminal                   Backend FastAPI
+  + mt5_bridge/app.py          ←HTTP──→   (polling tiap 10 detik)
+  (port 8765, IP lokal)
 ```
+
+> ✅ Tidak perlu ngrok — kedua server di jaringan lokal yang sama.
 
 ---
 
 ## Prerequisites
 
 - Windows 10/11 (64-bit)
-- Python 3.11+ sudah terinstall ([download](https://www.python.org/downloads/)) — **pastikan centang "Add Python to PATH"**
-- MetaTrader 5 sudah terinstall dan bisa login ke broker kamu
-- [ngrok](https://ngrok.com/download) — untuk expose port lokal ke internet
+- Python 3.11+ ([download](https://www.python.org/downloads/)) — **centang "Add Python to PATH"**
+- MetaTrader 5 terinstall dan sudah bisa login ke broker
 
 ---
 
@@ -33,15 +34,13 @@ cd timejournalv2-updatedb\mt5_bridge
 
 ### Step 2 — Generate API Key
 
-Buka Command Prompt dan jalankan:
-
 ```cmd
 python -c "import secrets; print(secrets.token_urlsafe(24))"
 ```
 
 Contoh output: `uJ9mK2xP8qRn5tL7wA3cB6dE`
 
-**Simpan output ini** — akan dipakai di Step 3 DAN di Coolify nanti.
+**Simpan output ini** — akan dipakai di Step 3 dan di Coolify.
 
 ### Step 3 — Buat file `.env`
 
@@ -50,94 +49,65 @@ copy .env.example .env
 notepad .env
 ```
 
-Edit isinya:
+Isi file `.env`:
 ```env
-MT5_BRIDGE_API_KEY=uJ9mK2xP8qRn5tL7wA3cB6dE   ← ganti dengan hasil Step 2
+MT5_BRIDGE_API_KEY=uJ9mK2xP8qRn5tL7wA3cB6dE
 MT5_BRIDGE_HOST=0.0.0.0
 MT5_BRIDGE_PORT=8765
 ```
 
-Simpan dan tutup Notepad.
-
 ### Step 4 — Install dependencies
 
-Double-click **`install.bat`** atau jalankan di CMD:
-
+Double-click **`install.bat`** atau:
 ```cmd
 install.bat
 ```
-
-Tunggu sampai selesai. Semua package Python akan terinstall otomatis.
-
-### Step 5 — Setup ngrok
-
-1. Download ngrok dari [ngrok.com/download](https://ngrok.com/download)
-2. Extract `ngrok.exe` ke folder `mt5_bridge\`
-3. Daftar akun gratis di [dashboard.ngrok.com](https://dashboard.ngrok.com)
-4. Salin authtoken dari dashboard, lalu jalankan:
-   ```cmd
-   ngrok config add-authtoken YOUR_TOKEN_DISINI
-   ```
 
 ---
 
 ## Menjalankan Bridge (Setiap Kali)
 
-1. **Pastikan MetaTrader 5 sudah berjalan** dan login ke akun broker kamu
+1. **Pastikan MetaTrader 5 sudah terbuka** dan login ke broker
 2. Double-click **`run.bat`**
 
-Akan muncul 2 jendela:
-- **MT5 Bridge** — server HTTP di port 8765
-- **ngrok tunnel** — public URL
+Script akan otomatis:
+- Mendeteksi IP lokal Windows
+- Membuka port 8765 di Windows Firewall
+- Menjalankan bridge server
+- Menampilkan URL yang perlu diset di Coolify
 
-### Cek di browser (opsional)
-Buka: `http://localhost:8765/health`
+Contoh output:
+```
+Bridge URL: http://192.168.1.105:8765
+
+Set di Coolify Environment Variables:
+  MT5_BRIDGE_URL   = http://192.168.1.105:8765
+  MT5_BRIDGE_API_KEY = uJ9mK2xP8qRn5tL7wA3cB6dE
+```
+
+### Verifikasi (dari SSH server Linux)
+
+```bash
+curl http://192.168.1.105:8765/health
+```
 
 Response yang benar:
 ```json
-{
-  "status": "ok",
-  "mt5_available": true,
-  "active_connections": 0
-}
+{ "status": "ok", "mt5_available": true, "active_connections": 0 }
 ```
-
-### Salin URL ngrok
-
-Di jendela ngrok, cari baris seperti ini:
-```
-Forwarding  https://abc123.ngrok-free.app -> http://localhost:8765
-```
-
-Salin URL `https://abc123.ngrok-free.app` — ini URL yang akan dipakai di Coolify.
-
-> ⚠️ **Penting:** URL ngrok berubah setiap kali `run.bat` dijalankan (pada akun gratis).
-> Jika ingin URL permanen, upgrade ngrok ke plan berbayar atau gunakan domain sendiri.
 
 ---
 
 ## Setup Coolify
 
-Di Coolify, buka **service backend** → **Environment Variables** → tambahkan:
+Di Coolify → service **backend** → **Environment Variables**:
 
-| Variable | Value |
+| Variable | Contoh Value |
 |---|---|
-| `MT5_BRIDGE_URL` | `https://abc123.ngrok-free.app` |
-| `MT5_BRIDGE_API_KEY` | `uJ9mK2xP8qRn5tL7wA3cB6dE` *(sama persis dengan di .env)* |
+| `MT5_BRIDGE_URL` | `http://192.168.1.105:8765` |
+| `MT5_BRIDGE_API_KEY` | `uJ9mK2xP8qRn5tL7wA3cB6dE` |
 
-Lalu klik **Redeploy** backend.
-
-> 💡 Build akan jauh lebih cepat dari sebelumnya karena Dockerfile sekarang pakai `python:3.11-slim` tanpa Wine.
-
----
-
-## Setelah Semua Jalan
-
-1. Buka aplikasi → Login
-2. Pergi ke halaman koneksi MT5
-3. Masukkan **login number**, **password**, dan **nama server** broker kamu
-4. Klik **Connect**
-5. Data trades dan posisi akan mulai ter-stream ✅
+Klik **Redeploy** backend.
 
 ---
 
@@ -145,23 +115,33 @@ Lalu klik **Redeploy** backend.
 
 | Masalah | Solusi |
 |---|---|
-| `mt5_available: false` | Install MetaTrader5: `pip install MetaTrader5` |
-| `Connection refused` | Pastikan MT5 terminal sudah dibuka dan login |
-| `401 Unauthorized` | Cek API key di `.env` dan Coolify harus sama persis |
-| URL ngrok berubah | Update `MT5_BRIDGE_URL` di Coolify dan Redeploy |
-| Port 8765 sudah dipakai | Ubah `MT5_BRIDGE_PORT` di `.env` |
+| `mt5_available: false` | MetaTrader5 library belum install — jalankan `install.bat` |
+| `Connection refused` | MT5 terminal belum dibuka / bridge belum jalan |
+| `401 Unauthorized` | API key di `.env` ≠ API key di Coolify |
+| Server tidak bisa reach Windows | Cek firewall, pastikan port 8765 open |
+| IP Windows berubah | Set static IP di pengaturan jaringan Windows |
 
 ---
 
-## API Endpoints (Referensi)
+## Tips: Set Static IP di Windows
+
+Agar IP Windows tidak berubah-ubah:
+
+1. Buka **Settings → Network → Ethernet/WiFi → Properties**
+2. Set **IP assignment: Manual**
+3. Masukkan IP yang sama (misal `192.168.1.105`), Subnet mask `255.255.255.0`, Gateway `192.168.1.1`
+
+---
+
+## API Reference
 
 | Method | Endpoint | Deskripsi |
 |---|---|---|
-| `GET` | `/health` | Cek status bridge (tanpa auth) |
-| `POST` | `/connect` | Connect MT5 dengan credentials |
-| `GET` | `/trades?user_id=X` | Semua history trades |
-| `GET` | `/positions?user_id=X` | Live open positions |
-| `GET` | `/account?user_id=X` | Info akun (balance, equity, dll) |
-| `DELETE` | `/disconnect?user_id=X` | Putus koneksi MT5 |
+| `GET` | `/health` | Status bridge (tanpa auth) |
+| `POST` | `/connect` | Connect MT5 |
+| `GET` | `/trades?user_id=X` | History trades |
+| `GET` | `/positions?user_id=X` | Live positions |
+| `GET` | `/account?user_id=X` | Info akun |
+| `DELETE` | `/disconnect?user_id=X` | Disconnect |
 
-Semua endpoint (kecuali `/health`) memerlukan header: `x-api-key: YOUR_API_KEY`
+Header required: `x-api-key: YOUR_API_KEY`

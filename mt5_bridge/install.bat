@@ -20,7 +20,7 @@ python --version
 
 :: Install dependencies
 echo.
-echo [1/3] Installing Python dependencies...
+echo [1/2] Installing Python dependencies...
 pip install -r requirements.txt
 if errorlevel 1 (
     echo [ERROR] Gagal install dependencies!
@@ -32,33 +32,25 @@ echo [OK] Dependencies installed.
 :: Check if .env exists
 if not exist .env (
     echo.
-    echo [2/3] Membuat file konfigurasi .env...
+    echo [2/2] Membuat file konfigurasi .env...
     copy .env.example .env
-    echo [OK] .env dibuat dari .env.example
     echo.
     echo ================================================
-    echo  PENTING: Edit file .env sebelum menjalankan!
-    echo  Ubah MT5_BRIDGE_API_KEY ke nilai yang aman.
+    echo  LANGKAH SELANJUTNYA:
+    echo.
+    echo  1. Buka file .env dan ubah MT5_BRIDGE_API_KEY
+    echo     dengan key yang kamu generate:
+    echo.
+    echo     python -c "import secrets; print(secrets.token_urlsafe(24))"
+    echo.
+    echo  2. Simpan .env lalu jalankan run.bat
     echo ================================================
 ) else (
-    echo [2/3] File .env sudah ada, lewati.
-)
-
-:: Check ngrok
-echo.
-echo [3/3] Mengecek ngrok...
-ngrok version >nul 2>&1
-if errorlevel 1 (
-    echo [INFO] ngrok tidak ditemukan. Download dari https://ngrok.com/download
-    echo        Setelah download, extract ngrok.exe ke folder ini atau tambahkan ke PATH.
-    echo        Lalu daftar dan dapatkan authtoken dari https://dashboard.ngrok.com
-) else (
-    echo [OK] ngrok ditemukan.
+    echo [2/2] File .env sudah ada.
 )
 
 echo.
 echo ============================================
-echo  Instalasi selesai!
-echo  Jalankan run.bat untuk memulai server.
+echo  Instalasi selesai! Jalankan run.bat
 echo ============================================
 pause
