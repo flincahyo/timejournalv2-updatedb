@@ -270,11 +270,10 @@ class MT5WorkerProcess:
         args = [script_path]
         
         if sys.platform == "linux":
-            # We try to use 'wine python' which relies on the PATH inside Wine.
-            # If that fails, we log the attempt clearly.
+            # Using the explicit path to the embeddable Python 3.11 we just installed
             executable = "wine"
-            args = ["python", script_path]
-            logger.info(f"Linux detected: Using Wine to launch worker. Prefix: {env['WINEPREFIX']}")
+            args = ["C:\\python311\\python.exe", script_path]
+            logger.info(f"Linux detected: Using Wine to launch worker. Path: C:\\python311\\python.exe, Prefix: {env['WINEPREFIX']}")
 
         self._proc = await asyncio.create_subprocess_exec(
             executable, *args,
