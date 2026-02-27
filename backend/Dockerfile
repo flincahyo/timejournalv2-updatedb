@@ -22,7 +22,10 @@ RUN dpkg --add-architecture i386 && \
     python3-dev \
     build-essential \
     libglib2.0-0 \
-    libgomp1 && \
+    libgomp1 \
+    unzip \
+    winetricks \
+    cabextract && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -45,6 +48,22 @@ COPY . .
 
 # Create data directory
 RUN mkdir -p /app/data
+
+# Install Windows Python (Embeddable) for MT5 Bridge
+RUN mkdir -p /root/.wine/drive_c/python311 && \
+    wget -q https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip -O /tmp/python.zip && \
+    unzip -q /tmp/python.zip -d /root/.wine/drive_c/python311 && \
+    sed -i 's/#import site/import site/' /root/.wine/drive_c/python311/python311._pth && \
+    rm /tmp/python.zip
+
+# Install MT5 Library inside Wine Python
+RUN wget -q https://bootstrap.pypa.io/get-pip.py -O /tmp/get-pip.py && \
+    xvfb-run wine C:\\python311\\python.exe /tmp/get-pip.py && \
+    xvfb-run wine C:\\python311\\python.exe -m pip install MetaTrader5 pytz proxy-randomizer && \
+    rm /tmp/get-pip.py
+
+# Install VC++ Runtime for MT5 support (crucial for mt5 library)
+RUN xvfb-run winetricks -q vcrun2015
 
 EXPOSE 8000
 
