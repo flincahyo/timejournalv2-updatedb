@@ -193,12 +193,18 @@ def connect(req: ConnectRequest, x_api_key: str = Header(default="")):
         raise HTTPException(status_code=500, detail="MetaTrader5 not installed")
 
     with _mt5_lock:
-        # MT5 Python library is single-instance — initialize with new credentials
+        # Always shutdown first to ensure clean account switch
+        mt5.shutdown()
         if not mt5.initialize(login=req.login, password=req.password, server=req.server):
             err = mt5.last_error()
             raise HTTPException(status_code=400, detail=f"MT5 init failed: {err}")
 
         acc = _get_account_info()
+        # Verify we connected to the correct account
+        if acc.get("login") and acc["login"] != req.login:
+            mt5.shutdown()
+            raise HTTPException(status_code=400, detail=f"Connected to wrong account: {acc.get('login')} (expected {req.login})")
+
         _connections[req.user_id] = {
             "login": req.login,
             "server": req.server,
