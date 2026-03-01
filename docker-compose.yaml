@@ -19,25 +19,25 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── FastAPI Backend (MT5 via Windows Bridge) ────────────────────────────────
+  # ── FastAPI Backend ──────────────────────────────────────────────────────────
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
+    networks:
+      - coolify
+      - default
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-timejournal}:${POSTGRES_PASSWORD:-timejournal}@postgres:5432/${POSTGRES_DB:-timejournal}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-CHANGE_ME_USE_RANDOM_32_CHARS}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       XAI_API_KEY: ${XAI_API_KEY:-}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
-      # MT5 Bridge (Push Mode) — bridge calls backend, not the other way around
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://timejournal.site}
       MT5_BRIDGE_API_KEY: ${MT5_BRIDGE_API_KEY:-changeme_secret_key_123}
       MT5_POLL_INTERVAL: ${MT5_POLL_INTERVAL:-10}
-    volumes:
-      - backend_data:/app/data
-    ports:
-      - "8001:8000"
+    expose:
+      - "8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,18 +54,18 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        # Baked into Next.js bundle at build time
-        # nginx handles /api/ routing internally — use same domain, no subdomain needed
-        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-https://timejournal.site}
+        NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-https://api.timejournal.site}
         NEXTAUTH_URL: ${NEXTAUTH_URL:-https://timejournal.site}
     restart: unless-stopped
+    networks:
+      - coolify
+      - default
     environment:
       NODE_ENV: production
-      # NextAuth runtime env vars
       NEXTAUTH_URL: ${NEXTAUTH_URL:-https://timejournal.site}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-CHANGE_ME_USE_RANDOM_32_CHARS}
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -76,35 +76,10 @@ services:
       retries: 5
       start_period: 30s
 
-  # ── Nginx Reverse Proxy ───────────────────────────────────────────────────────
-  nginx:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.nginx
-    restart: unless-stopped
-    # Must be in 'coolify' network so Coolify's Caddy proxy can reach this container
-    networks:
-      - coolify # ← Coolify proxy network (required for Caddy routing)
-      - default # ← Project network (for internal routing to frontend/backend)
-    expose:
-      - "80"
-    healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1/api/health > /dev/null || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    depends_on:
-      frontend:
-        condition: service_started
-      backend:
-        condition: service_healthy
-
 volumes:
   postgres_data:
-  backend_data:
 
 
 networks:
   coolify:
-    external: true # Coolify's proxy network — must exist on the host
+    external: true
