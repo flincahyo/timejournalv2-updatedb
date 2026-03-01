@@ -25,6 +25,7 @@ import uuid
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from sqlalchemy import delete
+import httpx
 
 # Local imports
 from database import init_db, get_db, User, MT5Connection, Trade, JournalNote, JournalTag, DailyTag, Alert, UserSettings
@@ -81,6 +82,29 @@ async def broadcast_to_user(user_id: str, msg: dict):
     for ws in dead:
         _ws_clients[user_id].remove(ws)
 
+async def send_expo_push_notification(token: str, title: str, body: str, data: dict = None):
+    """Sends a push notification using Expo's push API."""
+    if not token or not token.startswith("ExponentPushToken"):
+        return
+    
+    message = {
+        "to": token,
+        "sound": "default",
+        "title": title,
+        "body": body,
+        "data": data or {},
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://exp.host/--/api/v2/push/send",
+                json=message,
+                headers={"Accept": "application/json", "Accept-encoding": "gzip, deflate", "Content-Type": "application/json"}
+            )
+            print(f"DEBUG PUSH: Sent notification to {token}: {response.json()}")
+    except Exception as e:
+        print(f"DEBUG PUSH: Error sending push notification: {e}")
+
 
 # ── MT5 worker callback ───────────────────────────────────────────────────────
 async def on_mt5_message(user_id: str, msg: dict):
@@ -109,6 +133,25 @@ async def on_mt5_message(user_id: str, msg: dict):
             if not existing:
                 db.add(Trade(id=t["id"], user_id=user_id, data=t))
                 await db.commit()
+                
+                # Check for push notification token and send alert
+                settings = await db.get(UserSettings, user_id)
+                if settings and settings.expo_push_token:
+                    sym = t.get("symbol", "Unknown")
+                    side = t.get("type", "TRADE")
+                    lots = t.get("lots", t.get("volume", 0))
+                    status = t.get("status", "live")
+                    
+                    if status.lower() == "closed":
+                        pnl = t.get("pnl", t.get("profit", 0.0))
+                        title = f"Trade Closed: {sym}"
+                        body = f"{side} {lots} closed. PnL: ${pnl:.2f}"
+                    else:
+                        title = f"Trade Opened: {sym}"
+                        body = f"{side} {lots} opened at {t.get('openPrice', t.get('open_price', 0))}."
+                    
+                    asyncio.create_task(send_expo_push_notification(settings.expo_push_token, title, body, t))
+                            
         await broadcast_to_user(user_id, msg)
 
     elif msg_type in ("live_trades", "account_update", "error", "connected"):
@@ -636,6 +679,7 @@ async def get_settings(user: User = Depends(get_current_user), db: AsyncSession 
 class SettingsUpdateRequest(BaseModel):
     theme: Optional[str] = None
     newsSettings: Optional[dict] = None
+    expo_push_token: Optional[str] = None
 
 @app.put("/api/settings")
 async def update_settings(req: SettingsUpdateRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -647,6 +691,8 @@ async def update_settings(req: SettingsUpdateRequest, user: User = Depends(get_c
         s.theme = req.theme
     if req.newsSettings is not None:
         s.news_settings = req.newsSettings
+    if req.expo_push_token is not None:
+        s.expo_push_token = req.expo_push_token
     s.updated_at = datetime.datetime.utcnow()
     await db.commit()
     return {"ok": True}

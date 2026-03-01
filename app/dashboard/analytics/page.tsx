@@ -105,7 +105,7 @@ export default function AnalyticsPage() {
     <div className="fade-in flex flex-col gap-3 p-5 pb-10">
 
       {/* Quick Edge Stats */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="card py-3 px-4 border-l-[3px] border-l-accent2">
           <div className="text-[10px] font-bold text-text3 mb-1 uppercase tracking-[0.05em] flex items-center gap-1">Profit Factor <span className="text-border2 text-[9px] cursor-help" title="Gross Profit / Gross Loss">ⓘ</span></div>
           <div className="text-[18px] font-extrabold tracking-[-0.5px] text-text flex items-end gap-1">
@@ -138,10 +138,10 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Stats detail grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="card p-5">
-        <div className="text-[12px] font-bold text-text mb-3">Statistik Lengkap</div>
-        <div className="grid grid-cols-5 gap-2.5">
+      {/* ── Stats detail grid ─────────────────────────── */}
+      <div className="card p-5 overflow-x-auto scrollbar-none">
+        <div className="text-[12px] font-bold text-text mb-3 min-w-max">Statistik Lengkap</div>
+        <div className="flex md:grid md:grid-cols-5 gap-2.5 min-w-max pb-2">
           <MiniStat label="Avg Win" value={`+$${stats.avgWin.toFixed(2)}`} color="#4f81c7" />
           <MiniStat label="Avg Loss" value={`-$${stats.avgLoss.toFixed(2)}`} color="#b0793a" />
           <MiniStat label="Best Trade" value={`+$${stats.bestTrade.toFixed(2)}`} color="#5b6ec9" />
@@ -213,7 +213,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Symbol Summary Cards */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: "Best Symbol Sum", val: fmtUSD(Math.max(...Object.values(stats.symbolStats).map(s => s.pnl), 0)), sub: stats.bestSymbol, color: "#4f81c7" },
           { label: "Worst Symbol Sum", val: fmtUSD(Math.min(...Object.values(stats.symbolStats).map(s => s.pnl), 0)), sub: stats.worstSymbol, color: "#b0793a" },
@@ -232,7 +232,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Detailed Analysis Cards (Condensed into 1 row) */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         {/* Largest Win vs Loss */}
         <div className="card p-4">
           <div className="text-[12px] font-bold text-text mb-3">Extremes</div>
@@ -301,7 +301,7 @@ export default function AnalyticsPage() {
       <div className="card p-4 mt-2">
         <div className="text-[12px] font-bold text-text mb-3">Setup Performance</div>
         <div className="flex flex-col">
-          <div className="grid grid-cols-[1fr_60px_60px_80px_80px] py-1.5 px-3 text-[9px] font-semibold text-text3 uppercase tracking-[0.05em] border-b border-border bg-surface2 rounded-t-md">
+          <div className="grid grid-cols-[1fr_40px_40px_60px_60px] md:grid-cols-[1fr_60px_60px_80px_80px] py-1.5 px-3 text-[9px] font-semibold text-text3 uppercase tracking-[0.05em] border-b border-border bg-surface2 rounded-t-md">
             <div>Setup</div><div>Trades</div><div>WR</div><div>PnL</div><div>Avg Pips</div>
           </div>
           {Object.values(stats.symbolStats).length === 0 ? (
@@ -318,7 +318,7 @@ export default function AnalyticsPage() {
               if (t.pnl > 0) m[t.setup].wins++;
             });
             return Object.entries(m).sort((a, b) => b[1].count - a[1].count).map(([setup, d]) => (
-              <div key={setup} className="grid grid-cols-[1fr_60px_60px_80px_80px] py-2 px-3 border-b border-border text-[11px] transition-colors hover:bg-surface3 last:border-0">
+              <div key={setup} className="grid grid-cols-[1fr_40px_40px_60px_60px] md:grid-cols-[1fr_60px_60px_80px_80px] py-2 px-3 border-b border-border text-[11px] transition-colors hover:bg-surface3 last:border-0">
                 <span className="text-text font-medium">{setup}</span>
                 <span className="text-text3">{d.count}</span>
                 <span className={`font-semibold ${d.wins / d.count >= 0.5 ? 'text-[#4f81c7]' : 'text-[#b0793a]'

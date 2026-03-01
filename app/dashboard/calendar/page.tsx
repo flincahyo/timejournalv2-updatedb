@@ -113,9 +113,9 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="fade-in flex flex-col gap-4 p-7 pb-10">
-      <div className="flex items-center justify-between mb-1">
-        <div className="relative">
+    <div className="fade-in flex flex-col gap-4 p-4 md:p-7 pb-24 md:pb-10 max-w-8xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-1">
+        <div className="relative w-full md:w-auto flex justify-between md:block items-center">
           <button
             onClick={() => setShowPicker(!showPicker)}
             className="flex items-center gap-1.5 text-[18px] font-bold text-text hover:text-accent transition-colors"
@@ -150,9 +150,9 @@ export default function CalendarPage() {
             </>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 justify-end w-full md:w-auto">
           <button onClick={() => nav(-1)} className="btn-outline py-1.5 px-3.5 text-[15px]">‹</button>
-          <button onClick={() => { setYr(new Date().getFullYear()); setMo(new Date().getMonth()); }} className="btn-outline py-1.5 px-3 text-xs">Today</button>
+          <button onClick={() => { setYr(new Date().getFullYear()); setMo(new Date().getMonth()); }} className="btn-outline py-1.5 px-3 text-xs flex-1 md:flex-none">Today</button>
           <button onClick={() => nav(1)} className="btn-outline py-1.5 px-3.5 text-[15px]">›</button>
         </div>
       </div>

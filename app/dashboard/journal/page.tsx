@@ -94,12 +94,12 @@ export default function JournalPage() {
   }, [closed]);
 
   return (
-    <div className="fade-in p-7 pb-10 max-w-[1240px] mx-auto">
+    <div className="fade-in p-4 md:p-7 pb-10 max-w-[1240px] mx-auto flex flex-col h-[calc(100vh-var(--topbar-h))] md:h-auto overflow-hidden md:overflow-visible">
       {/* Header & Filters */}
-      <h1 className="text-2xl font-extrabold text-text tracking-[-0.8px] leading-tight mb-5">Journal</h1>
+      <h1 className="text-2xl font-extrabold text-text tracking-[-0.8px] leading-tight mb-5 shrink-0">Journal</h1>
 
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="flex flex-col gap-1.5 min-w-[220px]">
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-6 shrink-0">
+        <div className="flex flex-col gap-1.5 w-full md:w-[220px]">
           <label className="text-[11px] font-semibold text-text3 tracking-[.02em]">Search Journal</label>
           <input
             type="text"
@@ -109,7 +109,7 @@ export default function JournalPage() {
             onChange={e => setSearchQuery(e.target.value)}
           />
         </div>
-        <div className="flex flex-col gap-1.5 min-w-[160px]">
+        <div className="flex flex-col gap-1.5 w-full md:w-[160px]">
           <label className="text-[11px] font-semibold text-text3 tracking-[.02em]">Side</label>
           <select
             className="input px-4 h-[42px] text-[13px] bg-surface2 border-border text-text"
@@ -123,10 +123,10 @@ export default function JournalPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-5">
+      <div className="flex flex-col-reverse lg:grid lg:grid-cols-[1fr_260px] gap-5 flex-1 min-h-0 overflow-hidden md:overflow-visible">
 
         {/* Main Timeline Column */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 overflow-y-auto scrollbar-thin lg:overflow-visible">
           {dailyData.length === 0 && (
             <div className="card p-12 text-center text-text3 text-[13px]">Belum ada riwayat trade.</div>
           )}
@@ -164,7 +164,7 @@ export default function JournalPage() {
                   <div className="px-5 pb-5 pt-2 border-t border-border/50 fade-in">
 
                     {/* Top Row: Mini Chart & Metrics Grid */}
-                    <div className="grid grid-cols-[160px_1fr] md:grid-cols-[200px_1fr] gap-8 mb-5">
+                    <div className="flex flex-col md:grid md:grid-cols-[200px_1fr] gap-4 md:gap-8 mb-5">
 
                       {/* Mini Area Chart */}
                       <div className="h-[120px] pt-1">
@@ -184,7 +184,7 @@ export default function JournalPage() {
                       </div>
 
                       {/* Metrics 3x2 Grid */}
-                      <div className="grid grid-cols-3 gap-y-4 gap-x-6 py-2">
+                      <div className="grid grid-cols-3 md:grid-cols-3 gap-y-4 gap-x-6 py-2">
                         <div
                           className="flex flex-col cursor-pointer hover:bg-surface2/50 rounded p-1 -m-1 transition-colors"
                           onClick={() => setExpandedTrades(p => ({ ...p, [d.day]: !p[d.day] }))}

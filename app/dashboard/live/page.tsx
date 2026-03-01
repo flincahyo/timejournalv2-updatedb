@@ -64,15 +64,15 @@ export default function LiveTradesPage() {
   );
 
   return (
-    <div className="fade-in flex flex-col gap-3.5 p-7 pb-10">
+    <div className="fade-in flex flex-col gap-3.5 p-4 scrollbar-none md:p-7 pb-24 md:pb-10 max-w-8xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="w-2 h-2 rounded-full bg-green animate-pulse" />
           <span className="text-sm font-bold text-text">Live Positions</span>
           <span className="text-xs text-text3">Auto-update setiap 10 detik</span>
         </div>
-        <div className="flex gap-2 text-[11px] font-semibold tracking-wide uppercase">
+        <div className="flex gap-2 text-[11px] font-semibold tracking-wide uppercase overflow-x-auto scrollbar-none pb-1 w-full md:w-auto">
           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full shadow-sm border ${totalLivePnl >= 0 ? 'bg-green-bg border-green-br text-green' : 'bg-red-bg border-red-br text-red'}`}>
             <span>Unrealized PnL:</span>
             <b className="text-[12px] font-extrabold font-mono tracking-tight">
@@ -167,10 +167,10 @@ export default function LiveTradesPage() {
           </div>
         </div>
       ) : (
-        <div className="rounded-xl border border-border overflow-hidden">
-          <table className="tbl">
+        <div className="rounded-xl border border-border overflow-hidden overflow-x-auto">
+          <table className="tbl w-full text-left whitespace-nowrap">
             <thead>
-              <tr>
+              <tr className="bg-surface2">
                 {["Ticket", "Symbol", "Type", "Lots", "Entry", "Current", "Pips", "Unrealized PnL", "SL", "TP", "Duration", "Open (WIB)"].map(h => (
                   <th key={h} className="py-2.5 px-3 text-[10px] text-text3 uppercase tracking-[.05em]">{h}</th>
                 ))}
@@ -209,7 +209,7 @@ export default function LiveTradesPage() {
 
       {/* Account Summary */}
       {account && (
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {[
             ["Balance", "$" + account.balance?.toFixed(2), "text-text"],
             ["Equity", "$" + account.equity?.toFixed(2), account.equity >= account.balance ? "text-green" : "text-red"],

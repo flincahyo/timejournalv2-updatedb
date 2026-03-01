@@ -125,13 +125,40 @@ export default function LoginPage() {
   // Track focus vs filled state for smooth background transition
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
+  const [blurStr, setBlurStr] = useState("0px");
+
   useEffect(() => {
     setMounted(true);
+
+    // Set meta theme-color to explicitly tell React Native WebView to color the status bar
+    let metaTheme = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement;
+    let originalTheme = '';
+    if (!metaTheme) {
+      metaTheme = document.createElement('meta');
+      metaTheme.name = "theme-color";
+      document.head.appendChild(metaTheme);
+    } else {
+      originalTheme = metaTheme.content;
+    }
+    metaTheme.content = "#2e2523";
+
     if (!user && getToken()) {
       authGetMe().then((u) => {
         if (u) setUser({ id: u.id, email: u.email, name: u.name, provider: "credentials", createdAt: u.createdAt });
       });
     }
+
+    const handleScroll = () => {
+      const y = window.scrollY;
+      const blurVal = Math.min(y / 15, 12); // Max blur 12px
+      setBlurStr(`${blurVal}px`);
+    };
+    window.addEventListener("scroll", handleScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (metaTheme) metaTheme.content = originalTheme || (document.documentElement.classList.contains('dark') ? '#0f1117' : '#f4f6f8');
+    };
   }, []);
 
   useEffect(() => { if (user) router.replace("/dashboard"); }, [user]);
@@ -199,58 +226,68 @@ export default function LoginPage() {
 
       {/* Main split screen wrapper */}
       <div
-        className="min-h-screen flex font-sans"
+        className="min-h-screen flex flex-col lg:flex-row font-sans"
         style={{ backgroundColor: "#2e2523" }} // Dark earthy tone from reference
       >
 
         {/* ── LEFT PANEL ─────────────────────────────────────────────── */}
-        <div className="hidden lg:flex flex-col relative overflow-hidden" style={{ flex: "1 1 50%", padding: "40px" }}>
+        <div className="sticky top-0 z-10 flex flex-col relative overflow-hidden w-full lg:w-auto h-[480px] lg:h-auto lg:flex-[1_1_50%] shrink-0 p-8 lg:p-10 justify-center items-center">
 
           {/* Top text */}
-          <div className="text-white/40 text-[13px] tracking-wide mt-4 ml-8">
+          <div className="hidden lg:block text-white/40 text-[13px] tracking-wide absolute top-10 left-10">
             Track smarter – automated trading journals for you.
           </div>
 
           {/* Center graphic (wireframe circles) & Headline */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none mt-[-100px]">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             {/* Concentric circles */}
-            <div className="absolute w-[400px] h-[400px] rounded-full border border-white/5" />
-            <div className="absolute w-[500px] h-[500px] rounded-full border border-white/5" />
-            <div className="absolute w-[600px] h-[600px] rounded-full border border-white/5" />
+            <div className="absolute w-[300px] h-[300px] lg:w-[400px] lg:h-[400px] rounded-full border border-white/5" />
+            <div className="absolute w-[400px] h-[400px] lg:w-[500px] lg:h-[500px] rounded-full border border-white/5" />
+            <div className="absolute w-[500px] h-[500px] lg:w-[600px] lg:h-[600px] rounded-full border border-white/5" />
             {/* Crosshairs */}
-            <div className="absolute w-[600px] h-[1px] bg-white/5" />
-            <div className="absolute w-[1px] h-[600px] bg-white/5" />
-
-            <h1 className="relative z-10 text-[64px] font-bold text-white leading-[1.05] tracking-tight text-center max-w-[400px]">
-              Track<br />your trades
-            </h1>
+            <div className="absolute w-[100vw] lg:w-[600px] h-[1px] bg-white/5" />
+            <div className="absolute w-[1px] h-[100vh] lg:h-[600px] bg-white/5" />
           </div>
 
-          {/* Bottom left widget */}
-          <div className="absolute bottom-16 left-16 z-20">
+          <h1 className="relative z-10 text-[38px] lg:text-[64px] font-bold text-white leading-[1.05] tracking-tight text-center max-w-[400px] mb-8 lg:absolute lg:top-1/2 lg:-translate-y-1/2 lg:mt-[-50px]">
+            Track<br />your trades
+          </h1>
+
+          {/* Bottom left widget (Centered on mobile, absolute on desktop) */}
+          <div className="relative z-20 lg:absolute lg:bottom-16 lg:left-16 transform scale-85 lg:scale-100 origin-center">
             <ArtWidget />
           </div>
 
           {/* Bottom center watermark icon (from ref) */}
-          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 opacity-20 text-[#f97316]">
+          <div className="hidden lg:block absolute bottom-10 left-1/2 -translate-x-1/2 opacity-20 text-[#f97316]">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <circle cx="12" cy="12" r="10" />
               <path d="M12 8v8M8 12h8" />
             </svg>
           </div>
+
+          {/* Dynamic Blur Overlay during Mobile Scroll */}
+          <div
+            className="absolute inset-0 z-50 pointer-events-none lg:hidden"
+            style={{
+              backdropFilter: `blur(${blurStr})`,
+              WebkitBackdropFilter: `blur(${blurStr})`,
+              backgroundColor: `rgba(46, 37, 35, ${Math.min(parseFloat(blurStr) / 25, 0.4)})`
+            }}
+          />
         </div>
 
         {/* ── RIGHT PANEL (White Area) ───────────────────────────────── */}
         <div
-          className="flex flex-col relative bg-white w-full lg:w-[600px] xl:w-[700px] flex-shrink-0 lg:rounded-l-[40px] shadow-2xl z-30"
-          style={{ padding: "40px 60px" }}
+          className="flex flex-col relative bg-white w-full lg:w-[600px] xl:w-[700px] flex-shrink-0 rounded-t-[40px] lg:rounded-t-none lg:rounded-l-[40px] shadow-[0_-10px_40px_rgba(0,0,0,0.3)] lg:shadow-2xl z-30"
+          style={{ padding: "40px clamp(24px, 6vw, 60px)" }}
         >
 
           {/* Top nav inside white panel */}
           <div className="flex justify-between items-center w-full mb-auto pb-10">
             {/* Brand Logo */}
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f97316, #e11d48)" }}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #3b82f6, #2563eb)" }}>
                 <div className="w-4 h-4 rounded-full bg-white" />
               </div>
               <span className="text-[20px] font-bold text-[#0f172a] tracking-tight">TimeJournal</span>
@@ -324,17 +361,17 @@ export default function LoginPage() {
               {/* Forgot password mimicking the reference */}
               {mode === "login" && (
                 <div className="mt-1 mb-4">
-                  <span className="text-[13.5px] font-medium text-[#ea580c] cursor-pointer hover:underline px-2">
+                  <span className="text-[13.5px] font-medium text-[#2563eb] cursor-pointer hover:underline px-2">
                     Forgot password?
                   </span>
                 </div>
               )}
 
-              {/* Submit Button (Pill, gradient orange to pink) */}
+              {/* Submit Button (Pill, gradient blue) */}
               <button
                 type="submit" disabled={loading}
                 className="w-full rounded-full py-4 mt-2 flex items-center justify-center gap-3 text-white font-semibold text-[15px] shadow-lg transition-transform hover:-translate-y-[1px] disabled:opacity-70 disabled:cursor-not-allowed"
-                style={{ background: "linear-gradient(to right, #ea580c, #e11d48)", boxShadow: "0 8px 20px -6px rgba(225,29,72,0.5)" }}
+                style={{ background: "linear-gradient(to right, #3b82f6, #1d4ed8)", boxShadow: "0 8px 20px -6px rgba(37,99,235,0.5)" }}
               >
                 {loading
                   ? <div className="w-[20px] h-[20px] rounded-full border-[2.5px] border-white/30 border-t-white animate-[spin_1s_linear_infinite]" />

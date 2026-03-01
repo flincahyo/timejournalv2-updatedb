@@ -56,12 +56,12 @@ export default function TradesPage() {
     <div className="fade-in flex flex-col h-[calc(100vh-var(--topbar-h))] p-6 pb-6 overflow-hidden">
       {/* Header */}
       <div className="card shrink-0 p-4 mb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <input className="input w-[280px] h-[34px] text-[12.5px]" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="Cari symbol, setup..." />
-            <span className="text-[12px] font-semibold text-text3 shrink-0 whitespace-nowrap">{closed.length} Total Trades</span>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <input className="input flex-1 md:w-[280px] h-[34px] text-[12.5px]" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} placeholder="Cari symbol, setup..." />
+            <span className="text-[12px] font-semibold text-text3 shrink-0 whitespace-nowrap hidden md:block">{closed.length} Total Trades</span>
           </div>
-          <div className="flex gap-5 text-[12px] font-medium bg-surface2 py-1.5 px-3.5 rounded-[8px] border border-border">
+          <div className="flex gap-4 md:gap-5 text-[12px] font-medium bg-surface2 py-1.5 px-3.5 rounded-[8px] border border-border overflow-x-auto whitespace-nowrap scrollbar-none w-full md:w-auto">
             <span>Total PnL: <b className={totalPnl >= 0 ? 'text-green' : 'text-red'}>{fmtUSD(totalPnl)}</b></span>
             <span>Total Pips: <b className={totalPips >= 0 ? 'text-green' : 'text-red'}>{fmtPips(totalPips)}</b></span>
             <span>Win Rate: <b className="text-text font-bold">{closed.length ? (wins / closed.length * 100).toFixed(1) : 0}%</b></span>

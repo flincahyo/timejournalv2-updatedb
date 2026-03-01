@@ -122,6 +122,7 @@ class UserSettings(Base):
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), primary_key=True)
     theme: Mapped[str] = mapped_column(String(20), default="light")
     news_settings: Mapped[dict] = mapped_column(JSON, default=dict)
+    expo_push_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user: Mapped["User"] = relationship(back_populates="settings")
@@ -143,5 +144,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db():
     """Create all tables on startup."""
+    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Try to add the column if it doesn't exist
+        try:
+            await conn.execute(text("ALTER TABLE user_settings ADD COLUMN expo_push_token VARCHAR(255);"))
+        except Exception:
+            pass

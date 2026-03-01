@@ -65,13 +65,13 @@ function TradingViewWidget() {
   }, []);
 
   return (
-    <div className="p-7 h-[calc(100vh-60px)] flex flex-col">
+    <div className="p-4 md:p-7 h-auto lg:h-[calc(100vh-60px)] flex flex-col gap-4 pb-20 md:pb-7">
       <style dangerouslySetInnerHTML={{
         __html: `
         .tradingview-widget-container { background: #FCFCFC !important; }
         .tradingview-widget-container iframe { background: #FCFCFC !important; }
       `}} />
-      <div className="flex items-center justify-between mb-6 shrink-0">
+      <div className="flex flex-col md:flex-row md:items-center justify-between shrink-0 gap-2">
         <div>
           <h1 className="text-2xl font-extrabold text-text tracking-[-0.8px] leading-tight mb-1">
             Market Watchlist
@@ -82,7 +82,7 @@ function TradingViewWidget() {
         </div>
       </div>
 
-      <div className="w-full flex-1 overflow-hidden p-0 relative bg-surface flex items-center justify-center rounded-[20px]">
+      <div className="w-full flex-1 min-h-[500px] lg:min-h-0 overflow-hidden p-0 relative bg-surface flex items-center justify-center rounded-[20px]">
         <div className="tradingview-widget-container absolute inset-0 w-full h-full" ref={container}>
           <div className="tradingview-widget-container__widget w-full h-full" style={{ height: "calc(100% - 32px)" }}></div>
         </div>

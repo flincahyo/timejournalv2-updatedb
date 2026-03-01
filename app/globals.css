@@ -141,6 +141,9 @@
     font-size: 14px;
     line-height: 1.56;
     -webkit-font-smoothing: antialiased;
+    /* Respect mobile device notches/status bars via webview */
+    padding-top: constant(safe-area-inset-top);
+    padding-top: env(safe-area-inset-top);
   }
 
   ::-webkit-scrollbar {

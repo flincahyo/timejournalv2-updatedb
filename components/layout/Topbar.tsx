@@ -38,10 +38,10 @@ export default function Topbar() {
 
   return (
     <>
-      <header className="h-[var(--topbar-h)] bg-[var(--bg-grad)] flex items-center px-6 gap-3 shrink-0 sticky top-0 z-50 animate-[fadeDown_.45s_cubic-bezier(.16,1,.3,1)_both]">
+      <header className="h-[var(--topbar-h)] bg-[var(--bg-grad)] flex items-center px-4 md:px-6 gap-2 md:gap-3 shrink-0 sticky top-0 z-50 animate-[fadeDown_.45s_cubic-bezier(.16,1,.3,1)_both]">
 
-        {/* â”€â”€ Pill tabs — Panze top-center â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <div className="inline-flex gap-[3px] bg-surface2 border border-border rounded-full p-1 ml-2">
+        {/* â”€â”€ Pill tabs — Hidden on mobile since MobileTabBar handles page navigation â”€â”€ */}
+        <div className="hidden md:inline-flex gap-[3px] bg-surface2 border border-border rounded-full p-1 ml-2">
           {PAGE_TABS.map(t => {
             const active = t.href === "/dashboard" ? pathname === t.href : pathname.startsWith(t.href);
             return (
@@ -52,43 +52,43 @@ export default function Topbar() {
           })}
         </div>
 
-        <div className="flex-1" />
+        <div className="hidden md:block flex-1" />
 
-        {/* â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <div className="relative flex items-center group">
+        {/* â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        <div className="relative flex-1 md:flex-none flex items-center group">
           <span className="absolute left-3.5 text-text3 pointer-events-none leading-none">{IcSearch}</span>
-          <input className="py-2.5 px-4 pl-10 bg-surface border border-border rounded-full text-text text-[13px] font-sans w-[220px] transition-all duration-300 ease-out focus:w-[280px] focus:border-border2 focus:outline-none placeholder:text-text3" placeholder="Search trades, symbols…" />
+          <input className="py-2.5 px-4 pl-10 bg-surface border border-border rounded-full text-text text-[16px] md:text-[13px] font-sans w-full md:w-[220px] transition-all duration-300 ease-out focus:border-border2 focus:outline-none placeholder:text-text3" placeholder="Search..." />
         </div>
 
         {/* â”€â”€ Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <button onClick={() => setShowFilter(true)} className="bg-surface text-text2 py-2 px-4 rounded-full border border-border text-[12.5px] font-sans font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all duration-300 ease-out hover:border-border2 hover:text-text active:scale-96 relative">
-          {IcFilter} Filter
+        <button onClick={() => setShowFilter(true)} className="bg-surface text-text2 py-2.5 px-2.5 md:py-2 md:px-4 rounded-full border border-border text-[12.5px] font-sans font-semibold inline-flex items-center justify-center cursor-pointer transition-all duration-300 ease-out hover:border-border2 hover:text-text active:scale-96 relative md:gap-1.5">
+          {IcFilter} <span className="hidden md:inline">Filter</span>
           {filterCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-accent text-white text-[9.5px] font-extrabold flex items-center justify-center px-1">
+            <span className="absolute -top-1.5 -right-1.5 md:-top-1.5 md:-right-1.5 min-w-[18px] h-[18px] rounded-full bg-accent text-white text-[9.5px] font-extrabold flex items-center justify-center px-1">
               {filterCount}
             </span>
           )}
         </button>
 
         {/* â”€â”€ Date range â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <button onClick={() => setShowDate(true)} className="bg-surface text-text2 py-2 px-4 rounded-full border border-border text-[12.5px] font-sans font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all duration-300 ease-out hover:border-border2 hover:text-text active:scale-96">
+        <button onClick={() => setShowDate(true)} className="bg-surface text-text2 py-2.5 px-2.5 md:py-2 md:px-4 rounded-full border border-border text-[12.5px] font-sans font-semibold inline-flex items-center justify-center cursor-pointer transition-all duration-300 ease-out hover:border-border2 hover:text-text active:scale-96 md:gap-1.5">
           {IcCal}
-          <span className="max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap">
+          <span className="hidden md:block max-w-[80px] overflow-hidden text-ellipsis whitespace-nowrap">
             {filter.dateFrom ? filter.dateFrom.slice(5) + (filter.dateTo ? " â€“ " + filter.dateTo.slice(5) : "") : "Date Range"}
           </span>
         </button>
 
         {/* â”€â”€ Add trade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-        <button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-1.5 font-sans font-bold text-[12.5px] tracking-[-0.01em] cursor-pointer transition-all duration-300 ease-out active:scale-96 bg-pill text-[var(--pill-t)] py-[9px] px-[18px] rounded-full hover:opacity-[.88] hover:-translate-y-[1px]">
-          {IcPlus} Add Trade
+        <button onClick={() => setShowAdd(true)} className="inline-flex items-center justify-center font-sans font-bold text-[12.5px] tracking-[-0.01em] cursor-pointer transition-all duration-300 ease-out active:scale-96 bg-pill text-[var(--pill-t)] p-2.5 md:py-[9px] md:px-[18px] rounded-full hover:opacity-[.88] hover:-translate-y-[1px] md:gap-1.5">
+          {IcPlus} <span className="hidden md:inline">Add Trade</span>
         </button>
 
-        <div className="w-[1px] h-[22px] bg-border" />
+        <div className="hidden md:block w-[1px] h-[22px] bg-border mx-1" />
 
-        {/* â”€â”€ MT5 status chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* â”€â”€ MT5 status chip (Hidden on mobile since it's inside `More` Bottom Bar tab) â”€â”€ */}
         <button
           onClick={() => setShowMT5(true)}
-          className={`flex items-center gap-2 py-2 px-4 rounded-full cursor-pointer text-[12.5px] font-semibold transition-all duration-300 ${isConnected ? "bg-green-bg border border-green-br text-green" : "bg-surface2 border border-border text-text3"}`}
+          className={`hidden md:flex items-center gap-2 py-2 px-4 rounded-full cursor-pointer text-[12.5px] font-semibold transition-all duration-300 ${isConnected ? "bg-green-bg border border-green-br text-green" : "bg-surface2 border border-border text-text3"}`}
         >
           {isConnected ? (
             <div className="relative inline-flex w-2 h-2 shrink-0">

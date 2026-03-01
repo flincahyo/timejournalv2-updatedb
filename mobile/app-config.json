@@ -1,0 +1,7 @@
+{
+    "webAppUrl": "http://192.168.232.72:3000",
+    "backendUrl": "http://192.168.232.72:8000",
+    "appVersion": "1.0.0",
+    "maintenanceMode": false,
+    "maintenanceMessage": ""
+}

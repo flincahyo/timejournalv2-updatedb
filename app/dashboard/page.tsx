@@ -257,7 +257,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="p-7">
+    <div className="p-4 md:p-7 pb-24 md:pb-10 max-w-8xl mx-auto">
 
       {/* â”€â”€ Page header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="au mb-6.5">
@@ -296,8 +296,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* â”€â”€ ROW 1: 4 KPI cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="grid grid-cols-4 gap-3.5 mb-3.5">
+      {/* ── ROW 1: 4 KPI cards ────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-3.5">
         <KpiCard index={0} label="Total PnL" value={fmtUSD(stats.totalPnl)} sub={`${stats.wins}W / ${stats.losses}L`} subPos={stats.totalPnl >= 0} />
         {/* Total Pips flip card */}
         <div
@@ -353,8 +353,8 @@ export default function DashboardPage() {
         <KpiCard index={3} label="Win Rate" value={stats.winRate.toFixed(1) + "%"} sub={`${stats.totalTrades} total trades`} subPos={stats.winRate >= 50} />
       </div>
 
-      {/* â”€â”€ ROW 2: Donut (like "Projects Overview") + Equity + Monthly bar â”€â”€ */}
-      <div className="grid grid-cols-[290px_1fr_300px] gap-3.5 mb-3.5">
+      {/* ── ROW 2: Donut (like "Projects Overview") + Equity + Monthly bar ── */}
+      <div className="grid grid-cols-1 md:grid-cols-[290px_1fr_300px] gap-3.5 mb-3.5">
 
         {/* Projects Overview style — Win Rate donut */}
         <div className="card au d2 p-5">
@@ -454,8 +454,8 @@ export default function DashboardPage() {
 
 
 
-      {/* â”€â”€ ROW 4: Monthly bars + Hourly + Session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="grid grid-cols-[1fr_260px_260px] gap-3.5 mb-3.5">
+      {/* ── ROW 4: Monthly bars + Hourly + Session ─────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_260px_260px] gap-3.5 mb-3.5">
 
         {/* Monthly / Weekly flip card */}
         <div

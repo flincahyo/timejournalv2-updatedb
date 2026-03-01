@@ -5,7 +5,7 @@ import { useAlertStore } from "@/store";
 
 export function AlertWatcher() {
     const { alerts, notifiedIds, markNotified, clearOldNotified, activeToasts, addToast, removeToast, updateAlert } = useAlertStore();
-    const pollingRef = useRef<NodeJS.Timeout | null>(null);
+    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
         // Clear old notified IDs occasionally
@@ -176,8 +176,19 @@ function calcPips(symbol: string, diff: number) {
 function fireAlert(alert: any, symbol: string, direction: string, bodyText: string) {
     const title = alert.type === "price" ? `🎯 ${symbol} Price Target!` : `🚨 ${symbol} ${alert.timeframe} Momentum!`;
 
+    // 1. Desktop HTML5 Web Notification API
     if ('Notification' in window && Notification.permission === 'granted') {
         new Notification(title, { body: bodyText });
+    }
+
+    // 2. Mobile React Native WebView Bridge
+    if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
+        (window as any).ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'NATIVE_NOTIFICATION',
+            title: title,
+            body: bodyText,
+            data: { symbol, direction, alertId: alert.id }
+        }));
     }
 
     if (alert.soundUri) {

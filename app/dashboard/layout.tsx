@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore, useMT5Store, useJournalStore, useAlertStore, useNewsStore } from "@/store";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
+import MobileTabBar from "@/components/layout/MobileTabBar";
 import { useMT5Sync } from "@/hooks/useMT5Sync";
 import { authGetMe } from "@/lib/auth";
 import { getToken } from "@/lib/api";
@@ -23,6 +24,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // Clear any stale meta theme-color set by login page, so the
+    // React Native status bar defaults back to the dashboard theme
+    const staleMeta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (staleMeta) staleMeta.remove();
+
     async function bootstrap() {
       if (user) {
         // Already have user in memory — load server data
@@ -65,13 +71,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <DataLoader>
       <div className="flex h-screen overflow-hidden">
-        <Sidebar />
+        {/* Hide Sidebar on mobile */}
+        <div className="hidden md:block">
+          <Sidebar />
+        </div>
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <Topbar />
-          <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden md:pb-0 pb-[calc(4rem+env(safe-area-inset-bottom))]">
             {children}
           </main>
         </div>
+        {/* Mobile bottom tab bar */}
+        <MobileTabBar />
       </div>
     </DataLoader>
   );

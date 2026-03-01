@@ -138,8 +138,8 @@ export default function AlertsPage() {
   };
 
   return (
-    <div className="p-7 fade-in h-[calc(100vh-60px)] overflow-y-auto pt-[30px] pr-[30px] pb-[30px] pl-[30px] max-w-8xl mx-auto">
-      <div className="mb-8 shrink-0">
+    <div className="p-4 md:p-7 fade-in h-[calc(100vh-60px)] overflow-y-auto pb-24 md:pb-[30px] max-w-8xl mx-auto">
+      <div className="mb-4 md:mb-8 shrink-0">
         <h1 className="text-2xl font-extrabold text-text tracking-[-0.8px] leading-tight mb-1">
           Market Alerts
         </h1>
@@ -148,7 +148,7 @@ export default function AlertsPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_2fr] gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_2fr] gap-4 md:gap-8">
         {/* Configuration Panel */}
         <div className="card shadow-sm border border-[#00000008] bg-surface h-fit sticky top-0">
           <div className="flex border-b border-border">

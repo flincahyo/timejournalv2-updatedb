@@ -1,10 +1,17 @@
-﻿import type { Metadata } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import NextTopLoader from "nextjs-toploader";
 import { NewsWatcher } from "@/components/layout/NewsWatcher";
 import { AlertWatcher } from "@/components/layout/AlertWatcher";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   title: "TimeJournal — MT5 Trading Journal",
