@@ -1,7 +1,21 @@
 """
-mt5_bridge/app.py
-FastAPI HTTP Bridge Server for MetaTrader 5 (runs on Windows)
-Exposes MT5 data via REST API for Linux backend to consume.
+mt5_bridge/app.py  — PUSH Architecture v2
+==========================================
+Instead of waiting for the backend to call us (pull),
+we actively PUSH trade data to the backend API.
+
+Flow:
+  1. Bridge starts → reads BACKEND_URL from .env
+  2. Periodically checks for pending MT5 connections from backend
+  3. Connects to MT5 for each user, fetches trades/positions
+  4. POSTs data to backend /api/mt5/push endpoint
+  5. Backend stores and broadcasts to WebSocket users
+
+Windows setup required:
+  - Python + MetaTrader5 package
+  - .env with BACKEND_URL=https://api.timejournal.site
+  - Run: python app.py
+  - NO port forwarding or tunneling needed!
 """
 
 import asyncio
@@ -14,9 +28,12 @@ from typing import Dict, Optional
 
 import pytz
 import uvicorn
-from fastapi import FastAPI, HTTPException, Header
+import httpx
+from dotenv import load_dotenv
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+
+load_dotenv()
 
 try:
     import MetaTrader5 as mt5
@@ -26,25 +43,35 @@ except ImportError:
     print("WARNING: MetaTrader5 not installed. Run install.bat first.")
 
 # ── Config ───────────────────────────────────────────────────────────────────
-API_KEY = os.getenv("MT5_BRIDGE_API_KEY", "changeme_secret_key_123")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
+BRIDGE_API_KEY = os.getenv("MT5_BRIDGE_API_KEY", "changeme_secret_key_123")
+PUSH_INTERVAL = int(os.getenv("MT5_POLL_INTERVAL", "10"))  # seconds
 HOST = os.getenv("MT5_BRIDGE_HOST", "0.0.0.0")
 PORT = int(os.getenv("MT5_BRIDGE_PORT", "8765"))
 WIB = pytz.timezone("Asia/Jakarta")
 
-app = FastAPI(title="MT5 Bridge Server", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
 # ── Per-user connection state ─────────────────────────────────────────────────
 _connections: Dict[str, dict] = {}  # user_id -> {login, server, last_sync, account}
-_mt5_lock = threading.Lock()        # MT5 library is single-instance per process
+_mt5_lock = threading.Lock()
+
+# ── FastAPI (kept for local health check only) ────────────────────────────────
+app = FastAPI(title="MT5 Bridge — Push Mode", version="2.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-def verify_key(x_api_key: str = Header(default="")):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "mode": "push",
+        "backend_url": BACKEND_URL,
+        "mt5_available": MT5_AVAILABLE,
+        "active_connections": len(_connections),
+        "time": datetime.datetime.now(tz=WIB).isoformat(),
+    }
 
 
+# ── MT5 Data Helpers ──────────────────────────────────────────────────────────
 def _ts_to_utc_iso(ts: int) -> str:
     return datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).isoformat()
 
@@ -55,9 +82,8 @@ def _ts_to_wib_iso(ts: int) -> str:
 
 
 def _detect_session(utc_dt):
-    import pytz as _pytz
-    LDN = _pytz.timezone("Europe/London")
-    NY = _pytz.timezone("America/New_York")
+    LDN = pytz.timezone("Europe/London")
+    NY = pytz.timezone("America/New_York")
     if utc_dt.tzinfo is None:
         utc_dt = utc_dt.replace(tzinfo=datetime.timezone.utc)
     lh = utc_dt.astimezone(LDN).hour
@@ -167,133 +193,117 @@ def _get_account_info() -> dict:
     }
 
 
-# ── Models ─────────────────────────────────────────────────────────────────────
-class ConnectRequest(BaseModel):
-    user_id: str
-    login: int
-    password: str
-    server: str
+# ── Push to Backend ───────────────────────────────────────────────────────────
+async def push_to_backend(payload: dict):
+    """POST data to backend push webhook."""
+    headers = {"X-Bridge-Key": BRIDGE_API_KEY, "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(f"{BACKEND_URL}/api/mt5/push", json=payload, headers=headers)
+            if resp.status_code != 200:
+                print(f"[PUSH] Backend returned {resp.status_code}: {resp.text[:100]}")
+    except Exception as e:
+        print(f"[PUSH] Failed to push to backend: {e}")
 
 
-# ── Endpoints ──────────────────────────────────────────────────────────────────
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "mt5_available": MT5_AVAILABLE,
-        "active_connections": len(_connections),
-        "time": datetime.datetime.now(tz=WIB).isoformat(),
-    }
+async def fetch_pending_connections() -> list:
+    """Ask backend which users should have MT5 connections active."""
+    headers = {"X-Bridge-Key": BRIDGE_API_KEY}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{BACKEND_URL}/api/mt5/pending-connections", headers=headers)
+            if resp.status_code == 200:
+                return resp.json().get("connections", [])
+    except Exception as e:
+        print(f"[PULL] Failed to fetch pending connections: {e}")
+    return []
 
 
-@app.post("/connect")
-def connect(req: ConnectRequest, x_api_key: str = Header(default="")):
-    verify_key(x_api_key)
-    if not MT5_AVAILABLE:
-        raise HTTPException(status_code=500, detail="MetaTrader5 not installed")
+# ── Push Loop ─────────────────────────────────────────────────────────────────
+async def push_loop():
+    """Main async loop: sync MT5 state and push to backend."""
+    print(f"[PUSH] Starting push loop → {BACKEND_URL} (interval: {PUSH_INTERVAL}s)")
+    await asyncio.sleep(3)  # brief startup delay
 
-    with _mt5_lock:
-        # Always shutdown first to ensure clean account switch
-        mt5.shutdown()
-        if not mt5.initialize(login=req.login, password=req.password, server=req.server):
-            err = mt5.last_error()
-            raise HTTPException(status_code=400, detail=f"MT5 init failed: {err}")
+    while True:
+        try:
+            # 1. Get list of users who need MT5 connections from backend
+            pending = await fetch_pending_connections()
 
-        acc = _get_account_info()
-        # Verify we connected to the correct account
-        if acc.get("login") and acc["login"] != req.login:
-            mt5.shutdown()
-            raise HTTPException(status_code=400, detail=f"Connected to wrong account: {acc.get('login')} (expected {req.login})")
+            for conn_info in pending:
+                user_id = conn_info.get("user_id")
+                login = conn_info.get("login")
+                password = conn_info.get("password")
+                server = conn_info.get("server")
 
-        _connections[req.user_id] = {
-            "login": req.login,
-            "server": req.server,
-            "account": acc,
-            "last_sync": datetime.datetime.utcnow().isoformat(),
-        }
-        return {"success": True, "account": acc}
+                if not all([user_id, login, password, server]):
+                    continue
 
+                # 2. Connect if not already connected
+                with _mt5_lock:
+                    current = _connections.get(user_id, {})
+                    if current.get("login") != login or not mt5.terminal_info():
+                        mt5.shutdown()
+                        ok = mt5.initialize(login=login, password=password, server=server)
+                        if not ok:
+                            err = mt5.last_error()
+                            print(f"[MT5] Connect failed for user {user_id}: {err}")
+                            await push_to_backend({
+                                "user_id": user_id,
+                                "type": "error",
+                                "message": f"MT5 connect failed: {err}"
+                            })
+                            continue
 
-@app.delete("/disconnect")
-def disconnect(user_id: str, x_api_key: str = Header(default="")):
-    verify_key(x_api_key)
-    if user_id in _connections:
-        del _connections[user_id]
-    with _mt5_lock:
-        mt5.shutdown()
-    return {"success": True}
+                        acc = _get_account_info()
+                        _connections[user_id] = {"login": login, "server": server, "account": acc}
+                        print(f"[MT5] Connected user {user_id}: {acc.get('name')} / {acc.get('server')}")
 
+                        # Push connection success
+                        await push_to_backend({"user_id": user_id, "type": "connected", "account": acc})
 
-@app.get("/status")
-def status(user_id: str, x_api_key: str = Header(default="")):
-    verify_key(x_api_key)
-    conn = _connections.get(user_id)
-    if not conn:
-        return {"connected": False}
-    with _mt5_lock:
-        if not mt5.terminal_info():
-            _connections.pop(user_id, None)
-            return {"connected": False}
-        acc = _get_account_info()
-        conn["account"] = acc
-    return {"connected": True, "account": acc, "lastSync": conn.get("last_sync")}
+                # 3. Fetch and push data
+                with _mt5_lock:
+                    acc = _get_account_info()
+                    _connections[user_id]["account"] = acc
 
+                    # All trades (history)
+                    date_from = datetime.datetime(2000, 1, 1)
+                    date_to = datetime.datetime.now() + datetime.timedelta(hours=1)
+                    deals = mt5.history_deals_get(date_from, date_to) or []
+                    trades = [t for deal in deals if (t := _deal_to_dict(deal)) is not None]
 
-@app.get("/account")
-def account(user_id: str, x_api_key: str = Header(default="")):
-    verify_key(x_api_key)
-    if user_id not in _connections:
-        raise HTTPException(status_code=404, detail="Not connected")
-    with _mt5_lock:
-        acc = _get_account_info()
-    _connections[user_id]["last_sync"] = datetime.datetime.utcnow().isoformat()
-    _connections[user_id]["account"] = acc
-    return acc
+                    # Live positions
+                    pos_list = mt5.positions_get() or []
+                    positions = [_position_to_dict(p) for p in pos_list]
 
+                # Push all data
+                await push_to_backend({"user_id": user_id, "type": "all_trades", "trades": trades})
+                await push_to_backend({"user_id": user_id, "type": "live_trades", "trades": positions})
+                await push_to_backend({"user_id": user_id, "type": "account_update", "account": acc})
 
-@app.get("/trades")
-def trades(user_id: str, x_api_key: str = Header(default="")):
-    """Get all historical closed trades."""
-    verify_key(x_api_key)
-    if user_id not in _connections:
-        raise HTTPException(status_code=404, detail="Not connected")
-    with _mt5_lock:
-        date_from = datetime.datetime(2000, 1, 1)
-        date_to = datetime.datetime.now() + datetime.timedelta(hours=1)
-        deals = mt5.history_deals_get(date_from, date_to) or []
-        result = [t for deal in deals if (t := _deal_to_dict(deal)) is not None]
-    _connections[user_id]["last_sync"] = datetime.datetime.utcnow().isoformat()
-    return {"trades": result, "total": len(result)}
+            # Clean up disconnected users
+            active_ids = {c.get("user_id") for c in pending}
+            for uid in list(_connections.keys()):
+                if uid not in active_ids:
+                    del _connections[uid]
+                    print(f"[MT5] Removed stale connection for user {uid}")
+
+        except Exception as e:
+            print(f"[PUSH] Loop error: {e}")
+
+        await asyncio.sleep(PUSH_INTERVAL)
 
 
-@app.get("/positions")
-def positions(user_id: str, x_api_key: str = Header(default="")):
-    """Get current live open positions."""
-    verify_key(x_api_key)
-    if user_id not in _connections:
-        raise HTTPException(status_code=404, detail="Not connected")
-    with _mt5_lock:
-        pos_list = mt5.positions_get() or []
-        live = [_position_to_dict(p) for p in pos_list]
-    return {"positions": live, "total": len(live)}
-
-
-@app.get("/recent_trades")
-def recent_trades(user_id: str, hours: int = 1, x_api_key: str = Header(default="")):
-    """Get trades closed in the last N hours (for polling new closes)."""
-    verify_key(x_api_key)
-    if user_id not in _connections:
-        raise HTTPException(status_code=404, detail="Not connected")
-    with _mt5_lock:
-        from_dt = datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(hours=hours)
-        to_dt = datetime.datetime.now(tz=datetime.timezone.utc) + datetime.timedelta(hours=1)
-        deals = mt5.history_deals_get(from_dt, to_dt) or []
-        result = [t for deal in deals if (t := _deal_to_dict(deal)) is not None]
-    return {"trades": result, "total": len(result)}
+# ── Startup ───────────────────────────────────────────────────────────────────
+@app.on_event("startup")
+async def startup():
+    asyncio.create_task(push_loop())
 
 
 if __name__ == "__main__":
-    print(f"🚀 MT5 Bridge Server starting on port {PORT}")
-    print(f"🔑 API Key: {API_KEY}")
+    print(f"🚀 MT5 Bridge (Push Mode) starting")
+    print(f"🌐 Pushing to backend: {BACKEND_URL}")
+    print(f"⏱  Push interval: {PUSH_INTERVAL}s")
     print(f"📊 MT5 Available: {MT5_AVAILABLE}")
-    uvicorn.run(app, host=HOST, port=PORT)
+    uvicorn.run(app, host=HOST, port=PORT, log_level="warning")

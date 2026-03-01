@@ -436,6 +436,76 @@ async def disconnect_mt5(
     return {"success": True}
 
 
+# ── Push Architecture Endpoints ───────────────────────────────────────────────
+
+BRIDGE_KEY = os.getenv("MT5_BRIDGE_API_KEY", "changeme_secret_key_123")
+
+def verify_bridge_key(x_bridge_key: str = Header(default="")):
+    if x_bridge_key != BRIDGE_KEY:
+        raise HTTPException(status_code=401, detail="Invalid bridge key")
+
+@app.get("/api/mt5/pending-connections")
+async def get_pending_connections(
+    x_bridge_key: str = Header(default=""),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Called by MT5 Bridge on Windows.
+    Returns list of active MT5 sessions so bridge knows which users to serve.
+    """
+    if x_bridge_key != BRIDGE_KEY:
+        raise HTTPException(status_code=401, detail="Invalid bridge key")
+
+    result = await db.execute(
+        select(MT5Connection).where(MT5Connection.is_active == True)
+    )
+    active_conns = result.scalars().all()
+    connections = []
+    for c in active_conns:
+        password = decrypt_connection_password(c.encrypted_password)
+        if password:
+            connections.append({
+                "user_id": c.user_id,
+                "login": c.login,
+                "server": c.server,
+                "password": password,
+            })
+    return {"connections": connections}
+
+
+class MT5PushPayload(BaseModel):
+    user_id: str
+    type: str               # "connected" | "all_trades" | "live_trades" | "account_update" | "error"
+    trades: list = []
+    account: dict = {}
+    message: str = ""
+
+@app.post("/api/mt5/push")
+async def receive_mt5_push(
+    payload: MT5PushPayload,
+    x_bridge_key: str = Header(default=""),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Called by MT5 Bridge on Windows.
+    Receives pushed trade/position/account data and broadcasts to user WebSockets.
+    """
+    if x_bridge_key != BRIDGE_KEY:
+        raise HTTPException(status_code=401, detail="Invalid bridge key")
+
+    msg = {
+        "type": payload.type,
+        "trades": payload.trades,
+        "account": payload.account,
+        "message": payload.message,
+    }
+    # Re-use existing on_mt5_message handler — same as pull model
+    await on_mt5_message(payload.user_id, msg)
+    return {"ok": True}
+
+
+
+
 @app.get("/api/mt5/status")
 async def mt5_status(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     is_connected = mt5_manager.is_connected(str(user.id))
