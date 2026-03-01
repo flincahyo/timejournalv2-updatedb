@@ -17,6 +17,7 @@
     },
     "android": {
       "package": "com.bluskrin.timejournal",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -50,7 +51,7 @@
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 3000,
-      "url": "https://u.expo.dev/YOUR_PROJECT_ID"
+      "url": "https://u.expo.dev/bbe7e363-2fca-4820-88c6-06f988ceb456"
     },
     "runtimeVersion": {
       "policy": "appVersion"
@@ -58,8 +59,9 @@
     "extra": {
       "remoteConfigUrl": "https://raw.githubusercontent.com/flincahyo/timejournalv2-updatedb/main/mobile/app-config.json",
       "eas": {
-        "projectId": "YOUR_PROJECT_ID"
+        "projectId": "bbe7e363-2fca-4820-88c6-06f988ceb456"
       }
-    }
+    },
+    "owner": "flincahyo"
   }
 }

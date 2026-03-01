@@ -1,6 +1,6 @@
 {
-    "webAppUrl": "http://192.168.232.72:3000",
-    "backendUrl": "http://192.168.232.72:8000",
+    "webAppUrl": "https://timejournal.site",
+    "backendUrl": "https://api.timejournal.site",
     "appVersion": "1.0.0",
     "maintenanceMode": false,
     "maintenanceMessage": ""
