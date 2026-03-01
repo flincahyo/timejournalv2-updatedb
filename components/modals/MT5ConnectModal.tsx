@@ -7,7 +7,7 @@ import { Trade } from "@/types";
 import { apiPost } from "@/lib/api";
 
 export default function MT5ConnectModal({ onClose }: { onClose: () => void }) {
-  const { setTrades, setLiveTrades, setAccount, setConnected, setConnectionParams, setLastSync, isConnected, account, lastSync } = useMT5Store();
+  const { setTrades, setLiveTrades, setAccount, setConnected, setConnectionParams, setLastSync, isConnected, account, lastSync, disconnectMT5 } = useMT5Store();
   const [step, setStep] = useState<"form" | "connecting" | "done" | "error">(isConnected && account ? "done" : "form");
   const [form, setForm] = useState({ login: "", password: "", server: "", port: "443" });
   const [progress, setProgress] = useState(0);
@@ -64,12 +64,8 @@ export default function MT5ConnectModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const handleDisconnect = () => {
-    setConnected(false);
-    setAccount(null);
-    setTrades([]);
-    setLiveTrades([]);
-    setConnectionParams(null);
+  const handleDisconnect = async () => {
+    await disconnectMT5();
     onClose();
   };
 
