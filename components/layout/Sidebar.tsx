@@ -73,15 +73,15 @@ function SortableNavItem({ item, active, liveTradesCount, onClick }: { item: any
       style={style}
       {...attributes}
       {...listeners}
-      className={`relative w-full flex items-center h-[44px] cursor-pointer rounded-full mb-2 transition-all duration-200 group/item ${active
-        ? "bg-text text-surface shadow-[-2px_4px_10px_rgba(0,0,0,0.1)]"
-        : "bg-surface shadow-[0_2px_8px_rgba(0,0,0,0.02)] border border-[#00000008] text-text2 hover:text-text hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
+      className={`relative w-full flex items-center h-[42px] cursor-pointer rounded-full mb-0.5 transition-all duration-200 group/item ${active
+        ? "bg-text text-surface shadow-[-2px_4px_10px_rgba(0,0,0,0.15)]"
+        : "bg-transparent text-text2 hover:text-text hover:bg-black/5 dark:hover:bg-white/5"
         }`}
       onClick={onClick}
       title={item.label}
     >
       <div
-        className="shrink-0 flex items-center justify-center w-[44px] h-[44px] transition-transform duration-200 group-hover/item:scale-105">
+        className="shrink-0 flex items-center justify-center w-[42px] h-[42px] transition-transform duration-200 group-hover/item:scale-105">
         {IC[item.icon as keyof typeof IC]}
         {item.id === "live" && liveTradesCount > 0 && (
           <span className="absolute top-2 left-8 w-[7px] h-[7px] shrink-0 rounded-full bg-green border-[1.5px] border-surface z-10" />
@@ -204,11 +204,11 @@ export default function Sidebar() {
       {/* Bottom controls */}
       <div className="flex flex-col gap-1.5 w-full px-[10px] shrink-0 overflow-hidden">
         <div
-          className="relative w-full flex items-center h-[44px] cursor-pointer rounded-full mb-2 transition-all duration-200 group/item bg-surface shadow-[0_2px_8px_rgba(0,0,0,0.02)] border border-[#00000008] text-text2 hover:text-text hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
+          className="relative w-full flex items-center h-[42px] cursor-pointer rounded-full mb-0.5 transition-all duration-200 group/item bg-transparent text-text2 hover:text-text hover:bg-black/5 dark:hover:bg-white/5"
           onClick={() => toggleTheme()}
           title="Toggle Dark Mode"
         >
-          <div className="shrink-0 flex items-center justify-center w-[44px] h-[44px] transition-transform duration-200 group-hover/item:scale-105">
+          <div className="shrink-0 flex items-center justify-center w-[42px] h-[42px] transition-transform duration-200 group-hover/item:scale-105">
             {theme === 'dark' ? IC.sun : IC.moon}
           </div>
           <span className="ml-2.5 text-[13.5px] font-semibold whitespace-nowrap opacity-0 group-data-[expanded=true]:opacity-100 transition-opacity duration-300">
@@ -218,11 +218,11 @@ export default function Sidebar() {
 
         {/* User / Logout */}
         <div
-          className="relative w-full flex items-center h-[44px] cursor-pointer rounded-full mb-4 transition-all duration-200 group/item bg-surface shadow-[0_2px_8px_rgba(0,0,0,0.02)] border border-[#00000008] text-text2 hover:text-red hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
+          className="relative w-full flex items-center h-[42px] cursor-pointer rounded-full mb-2 transition-all duration-200 group/item bg-transparent text-text2 hover:text-red hover:bg-red/5"
           onClick={handleLogout}
           title="Logout"
         >
-          <div className="shrink-0 flex items-center justify-center w-[44px] h-[44px] transition-transform duration-200 group-hover/item:scale-105 hover:bg-red-bg rounded-full">
+          <div className="shrink-0 flex items-center justify-center w-[42px] h-[42px] transition-transform duration-200 group-hover/item:scale-105 hover:bg-red-bg rounded-full">
             {IC.logout}
           </div>
           <span className="ml-2.5 text-[13.5px] font-semibold whitespace-nowrap opacity-0 group-data-[expanded=true]:opacity-100 transition-opacity duration-300">
@@ -231,8 +231,8 @@ export default function Sidebar() {
         </div>
 
         {user && (
-          <div className="w-full flex items-center h-[44px] rounded-full">
-            <div className="w-[38px] h-[38px] ml-[3px] group-data-[expanded=true]:ml-[-7px] shrink-0 rounded-full bg-pill border-2 border-surface flex items-center justify-center text-[10px] font-extrabold text-[var(--pill-t)]">
+          <div className="w-full flex items-center h-[42px] rounded-full">
+            <div className="w-[36px] h-[36px] ml-[3px] group-data-[expanded=true]:ml-[-5px] shrink-0 rounded-full bg-pill border-2 border-surface flex items-center justify-center text-[10px] font-extrabold text-[var(--pill-t)]">
               {user.name?.slice(0, 2).toUpperCase()}
             </div>
             <div className="ml-3.5 flex flex-col justify-center opacity-0 group-data-[expanded=true]:opacity-100 transition-opacity duration-300 whitespace-nowrap">
