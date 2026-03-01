@@ -309,19 +309,33 @@ async def connect_mt5(
 
     # Save/update connection in DB
     result = await db.execute(
-        select(MT5Connection).where(MT5Connection.user_id == user.id, MT5Connection.is_active == True)
+        select(MT5Connection).where(MT5Connection.user_id == user.id)
     )
-    conn = result.scalar_one_or_none()
-    if conn:
-        # ── If login changed, clear stale trades from old account ──────────
-        if conn.login != req.login:
-            print(f"DEBUG MT5: Login changed {conn.login} → {req.login}, clearing old trades")
-            await db.execute(delete(Trade).where(Trade.user_id == user.id))
-            await db.commit()
-        conn.login = req.login
-        conn.server = req.server
-        conn.encrypted_password = encrypted_pw
-        conn.is_active = True
+    all_conns = result.scalars().all()
+    
+    # ── Safely deactivate all old, detect if login changed ──────────
+    login_changed = False
+    same_login_conn = None
+    
+    for c in all_conns:
+        if c.is_active and c.login != req.login:
+            login_changed = True
+        if c.login == req.login and c.server == req.server:
+            same_login_conn = c
+        c.is_active = False
+        
+    if not same_login_conn and all_conns:
+        login_changed = True
+
+    if login_changed:
+        print(f"DEBUG MT5: Login changed to {req.login}, clearing old trades")
+        await db.execute(delete(Trade).where(Trade.user_id == user.id))
+
+    if same_login_conn:
+        same_login_conn.login = req.login
+        same_login_conn.server = req.server
+        same_login_conn.encrypted_password = encrypted_pw
+        same_login_conn.is_active = True
     else:
         conn = MT5Connection(
             user_id=user.id,
@@ -363,13 +377,19 @@ async def disconnect_mt5(
     db: AsyncSession = Depends(get_db),
 ):
     await mt5_manager.disconnect(str(user.id))
+    
+    # Clear active status flag for all existing connections
     result = await db.execute(
         select(MT5Connection).where(MT5Connection.user_id == user.id, MT5Connection.is_active == True)
     )
-    conn = result.scalar_one_or_none()
-    if conn:
+    active_conns = result.scalars().all()
+    for conn in active_conns:
         conn.is_active = False
-        await db.commit()
+        
+    # Wipe trade cache for this user so old data doesn't persist to UI
+    await db.execute(delete(Trade).where(Trade.user_id == user.id))
+    await db.commit()
+    
     return {"success": True}
 
 
@@ -380,7 +400,9 @@ async def mt5_status(user: User = Depends(get_current_user), db: AsyncSession = 
     result = await db.execute(
         select(MT5Connection).where(MT5Connection.user_id == user.id, MT5Connection.is_active == True)
     )
-    conn = result.scalar_one_or_none()
+    # Support if there were dupes previously
+    active_conns = result.scalars().all()
+    conn = active_conns[0] if active_conns else None
 
     # Auto-reconnect: If worker not running but DB session is active, try starting it
     if not is_connected and conn:
