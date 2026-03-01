@@ -6,9 +6,6 @@ services:
     image: postgres:16-alpine
     hostname: timejournal-db
     restart: unless-stopped
-    networks:
-      - coolify
-      - default
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-timejournal}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-timejournal}
@@ -29,9 +26,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    networks:
-      - coolify
-      - default
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-timejournal}:${POSTGRES_PASSWORD:-timejournal}@timejournal-db:5432/${POSTGRES_DB:-timejournal}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-CHANGE_ME_USE_RANDOM_32_CHARS}
@@ -40,8 +34,8 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://timejournal.site}
       MT5_BRIDGE_API_KEY: ${MT5_BRIDGE_API_KEY:-changeme_secret_key_123}
       MT5_POLL_INTERVAL: ${MT5_POLL_INTERVAL:-10}
-    expose:
-      - "8000"
+    ports:
+      - "8001:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,15 +55,12 @@ services:
         NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-https://api.timejournal.site}
         NEXTAUTH_URL: ${NEXTAUTH_URL:-https://timejournal.site}
     restart: unless-stopped
-    networks:
-      - coolify
-      - default
     environment:
       NODE_ENV: production
       NEXTAUTH_URL: ${NEXTAUTH_URL:-https://timejournal.site}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-CHANGE_ME_USE_RANDOM_32_CHARS}
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     depends_on:
       backend:
         condition: service_healthy
@@ -82,8 +73,3 @@ services:
 
 volumes:
   postgres_data:
-
-
-networks:
-  coolify:
-    external: true
