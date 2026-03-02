@@ -253,7 +253,7 @@ export default function AlertsPage() {
                       <button
                         type="button"
                         onClick={() => setTargetPrice(suggestedPrice.toString())}
-                        className="text-[11px] font-bold text-accent hover:underline bg-[#F9FAFB] pl-1"
+                        className="text-[11px] font-bold text-accent bg-transparent hover:opacity-75 transition-opacity px-2"
                       >
                         {suggestedPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} (Current price)
                       </button>
