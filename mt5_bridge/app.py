@@ -278,12 +278,13 @@ async def push_loop():
                     acc = _get_account_info()
                     _connections[user_id]["account"] = acc
 
-                    # All trades (history) - Limit to 30 days to prevent MT5 from hanging on massive downloads
-                    date_from = datetime.datetime.now() - datetime.timedelta(days=30)
+                    # All trades (history) - Limit to 1 day to prevent MT5 from hanging on massive downloads
+                    # (This loop runs every 10 seconds, pulling 500+ trades takes 50s and blocks live price alerts)
+                    date_from = datetime.datetime.now() - datetime.timedelta(days=1)
                     date_to = datetime.datetime.now() + datetime.timedelta(hours=1)
-                    print(f"[MT5] Fetching deals for user {user_id}...")
+                    print(f"[MT5] Fetching deals for user {user_id} (Last 24 hours)...")
                     deals = mt5.history_deals_get(date_from, date_to) or []
-                    print(f"[MT5] Found {len(deals)} deals.")
+                    print(f"[MT5] Found {len(deals)} recent deals.")
                     trades = [t for deal in deals if (t := _deal_to_dict(deal)) is not None]
 
                     # Live positions
