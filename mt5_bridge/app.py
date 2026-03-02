@@ -311,6 +311,9 @@ async def push_loop():
                     candles = {}
                     with _mt5_lock:
                         for sym in all_symbols:
+                            # Force MetaTrader to track this symbol in the Market Watch board
+                            mt5.symbol_select(sym, True)
+
                             tick = mt5.symbol_info_tick(sym)
                             if tick:
                                 prices[sym] = float(tick.bid)
