@@ -227,8 +227,14 @@ async def push_loop():
 
     while True:
         try:
+            # Ensure MT5 is running locally so we can grab global prices
+            if not mt5.initialize():
+                await asyncio.sleep(PUSH_INTERVAL)
+                continue
+
             # 1. Get list of users who need MT5 connections from backend
             pending = await fetch_pending_connections()
+            all_symbols = set()
 
             for conn_info in pending:
                 user_id = conn_info.get("user_id")
@@ -281,59 +287,59 @@ async def push_loop():
                 await push_to_backend({"user_id": user_id, "type": "all_trades", "trades": trades})
                 await push_to_backend({"user_id": user_id, "type": "live_trades", "trades": positions})
                 await push_to_backend({"user_id": user_id, "type": "account_update", "account": acc})
+                
+                # Accumulate live position symbols for global tracking
+                for p in positions:
+                    if p.get("symbol"):
+                        all_symbols.add(p["symbol"])
 
-                # 4. Push latest prices for alert evaluation
+            # 4. Push latest prices for alert evaluation (GLOBAL, outside user loop)
+            try:
+                # Fetch active alert symbols from backend so we track them even without positions
                 try:
-                    symbols = set()
-                    for p in positions:
-                        if p.get("symbol"):
-                            symbols.add(p["symbol"])
-                            
-                    # Fetch active alert symbols from backend so we track them even without positions
-                    try:
-                        headers = {"X-Bridge-Key": BRIDGE_API_KEY}
-                        async with httpx.AsyncClient(timeout=5.0) as client:
-                            res = await client.get(f"{BACKEND_URL}/api/mt5/alert-symbols", headers=headers)
-                            if res.status_code == 200:
-                                alert_syms = res.json().get("symbols", [])
-                                symbols.update(alert_syms)
-                    except Exception as e:
-                        print(f"[PUSH] Failed to fetch alert symbols: {e}")
-                    
-                    if symbols:
-                        prices = {}
-                        candles = {}
-                        with _mt5_lock:
-                            for sym in symbols:
-                                tick = mt5.symbol_info_tick(sym)
-                                if tick:
-                                    prices[sym] = float(tick.bid)
-                                # Also get M1 candle for candle alerts
-                                try:
-                                    rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_M1, 0, 2)
-                                    if rates is not None and len(rates) > 0:
-                                        candles[f"{sym}_M1"] = [
-                                            {"time": int(r["time"]), "open": float(r["open"]),
-                                             "high": float(r["high"]), "low": float(r["low"]),
-                                             "close": float(r["close"])}
-                                            for r in rates
-                                        ]
-                                        # Also add latest candle close as fallback price
-                                        if sym not in prices:
-                                            prices[sym] = float(rates[-1]["close"])
-                                except Exception:
-                                    pass
-                        
-                        if prices:
-                            headers = {"X-Bridge-Key": BRIDGE_API_KEY, "Content-Type": "application/json"}
-                            async with httpx.AsyncClient(timeout=10.0) as client:
-                                await client.post(
-                                    f"{BACKEND_URL}/api/mt5/push-prices",
-                                    json={"prices": prices, "candles": candles},
-                                    headers=headers,
-                                )
+                    headers = {"X-Bridge-Key": BRIDGE_API_KEY}
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        res = await client.get(f"{BACKEND_URL}/api/mt5/alert-symbols", headers=headers)
+                        if res.status_code == 200:
+                            alert_syms = res.json().get("symbols", [])
+                            all_symbols.update(alert_syms)
                 except Exception as e:
-                    print(f"[PUSH] Price push error: {e}")
+                    print(f"[PUSH] Failed to fetch alert symbols: {e}")
+                
+                if all_symbols:
+                    prices = {}
+                    candles = {}
+                    with _mt5_lock:
+                        for sym in all_symbols:
+                            tick = mt5.symbol_info_tick(sym)
+                            if tick:
+                                prices[sym] = float(tick.bid)
+                            # Also get M1 candle for candle alerts
+                            try:
+                                rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_M1, 0, 2)
+                                if rates is not None and len(rates) > 0:
+                                    candles[f"{sym}_M1"] = [
+                                        {"time": int(r["time"]), "open": float(r["open"]),
+                                         "high": float(r["high"]), "low": float(r["low"]),
+                                         "close": float(r["close"])}
+                                        for r in rates
+                                    ]
+                                    # Also add latest candle close as fallback price
+                                    if sym not in prices:
+                                        prices[sym] = float(rates[-1]["close"])
+                            except Exception:
+                                pass
+                    
+                    if prices:
+                        headers = {"X-Bridge-Key": BRIDGE_API_KEY, "Content-Type": "application/json"}
+                        async with httpx.AsyncClient(timeout=10.0) as client:
+                            await client.post(
+                                f"{BACKEND_URL}/api/mt5/push-prices",
+                                json={"prices": prices, "candles": candles},
+                                headers=headers,
+                            )
+            except Exception as e:
+                print(f"[PUSH] Price push error: {e}")
 
             # Clean up disconnected users
             active_ids = {c.get("user_id") for c in pending}
