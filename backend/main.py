@@ -631,9 +631,11 @@ async def get_alert_symbols(
         sym = a.data.get("symbol")
         if sym: symbols.add(sym)
         
-    # Also include symbols temporarily watched by users in the UI, then clear them
-    symbols.update(_watching_symbols)
-    _watching_symbols.clear()
+    # Also include symbols temporarily watched by users in the UI
+    # They expire 30 seconds after the UI stops polling them
+    current_time = time.time()
+    active_watched = [sym for sym, expires in _watching_symbols.items() if current_time < expires]
+    symbols.update(active_watched)
         
     return {"symbols": list(symbols)}
 
@@ -658,8 +660,8 @@ async def get_candles(req: CandlesRequest, user: User = Depends(get_current_user
     results = []
     
     for item in req.items:
-        # Register the symbol so the MT5 bridge starts pushing its prices
-        _watching_symbols.add(item.symbol)
+        # Register the symbol so the MT5 bridge starts pushing its prices (expires in 30s)
+        _watching_symbols[item.symbol.upper()] = time.time() + 30.0
         
         # Check global cache from push bridge (Format: "XAUUSD_M1")
         cache_key = f"{item.symbol}_{item.timeframe.upper()}"
