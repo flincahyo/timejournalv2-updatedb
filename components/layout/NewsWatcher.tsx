@@ -56,14 +56,25 @@ export function NewsWatcher() {
                 if (evDate > now && evDate <= thresholdTime) {
                     const evId = `${ev.title}-${ev.date}`;
                     if (!notifiedIds.includes(evId)) {
-                        // Trigger browser notification
-                        if (Notification.permission === "granted") {
+                        // 1. Trigger browser notification (Desktop)
+                        if ('Notification' in window && Notification.permission === "granted") {
                             new Notification(`Berita Ekonomi: ${ev.country} - ${ev.impact}`, {
                                 body: `${ev.title} rilis dalam ${settings.minutesBefore} menit.\nForecast: ${ev.forecast || '-'} | Prev: ${ev.previous || '-'}`,
-                                icon: "/favicon.ico" // optional if exists
+                                icon: "/favicon.ico"
                             });
-                            markNotified(evId);
                         }
+
+                        // 2. React Native WebView Bridge (Mobile Foreground)
+                        if (typeof window !== "undefined" && (window as any).ReactNativeWebView) {
+                            (window as any).ReactNativeWebView.postMessage(JSON.stringify({
+                                type: 'NATIVE_NOTIFICATION',
+                                title: `📰 ${ev.country} ${ev.impact} Impact`,
+                                body: `${ev.title} rilis dalam ${settings.minutesBefore} menit.\nForecast: ${ev.forecast || '-'} | Prev: ${ev.previous || '-'}`,
+                                data: { type: "news", country: ev.country, impact: ev.impact }
+                            }));
+                        }
+
+                        markNotified(evId);
                     }
                 }
             });

@@ -76,6 +76,10 @@ _price_cache: Dict[str, float] = {}  # {"XAUUSD": 2650.50, ...}
 _candle_cache: Dict[str, list] = {}  # {"XAUUSD_M1": [{time, open, high, low, close}, ...], ...}
 _alert_notified: Dict[str, float] = {}  # {"alert_id": last_notified_timestamp}
 
+# ── News cache (updated hourly) ───────────────────────────────────────────────
+_news_cache: List[dict] = []
+_news_notified: Set[str] = set()
+
 
 async def broadcast_to_user(user_id: str, msg: dict):
     dead = []
@@ -205,9 +209,14 @@ async def lifespan(app: FastAPI):
     evaluator_task = asyncio.create_task(_alert_evaluator_loop())
     print("🔔 Alert evaluator started")
     
+    # Start news evaluator background task
+    news_task = asyncio.create_task(_news_evaluator_loop())
+    print("📰 News evaluator started")
+    
     yield
     
     evaluator_task.cancel()
+    news_task.cancel()
     await mt5_manager.shutdown_all()
 
 
@@ -600,6 +609,25 @@ async def mt5_status(user: User = Depends(get_current_user), db: AsyncSession = 
         "login": conn.login if conn else None,
         "server": conn.server if conn else None,
     }
+
+@app.get("/api/mt5/alert-symbols")
+async def get_alert_symbols(
+    x_bridge_key: str = Header(default=""),
+    db: AsyncSession = Depends(get_db)
+):
+    """Returns a list of symbols that have active price/candle alerts so the bridge can track them."""
+    if x_bridge_key != BRIDGE_KEY:
+        raise HTTPException(status_code=401, detail="Invalid bridge key")
+    
+    result = await db.execute(select(Alert).where(Alert.enabled == True))
+    alerts = result.scalars().all()
+    
+    symbols = set()
+    for a in alerts:
+        sym = a.data.get("symbol")
+        if sym: symbols.add(sym)
+        
+    return {"symbols": list(symbols)}
 
 
 @app.get("/api/mt5/trades")
@@ -1042,6 +1070,103 @@ async def _alert_evaluator_loop():
             print(f"⚠ Alert evaluator error: {e}")
         
         await asyncio.sleep(5)
+
+
+# ── News Evaluator Background Loop ───────────────────────────────────────────
+async def _update_news_cache():
+    """Fetches the latest news JSON every hour."""
+    global _news_cache
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.get("https://nfs.faireconomy.media/ff_calendar_thisweek.json", headers={"User-Agent": "Mozilla/5.0"})
+            if res.status_code == 200:
+                _news_cache = res.json()
+    except Exception as e:
+        print(f"⚠ Failed to fetch news for cache: {e}")
+
+async def _news_evaluator_loop():
+    """Runs every 1 minute. Evaluates news events against user settings and pushes notifications."""
+    await asyncio.sleep(15)  # Wait for DB init
+    print("📰 News evaluator loop running")
+    
+    last_fetch = 0
+    
+    while True:
+        try:
+            now_ts = time.time()
+            if now_ts - last_fetch > 3600:  # Refresh every hour
+                await _update_news_cache()
+                last_fetch = now_ts
+                
+            if _news_cache:
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(User).options(selectinload(User.settings))
+                    )
+                    users = result.scalars().all()
+                    
+                    now_dt = datetime.datetime.now(datetime.timezone.utc)
+                    
+                    # Maintenance: clear old notified tracking once a day
+                    if len(_news_notified) > 1000:
+                        _news_notified.clear()
+                    
+                    for user in users:
+                        if not user.settings or not user.settings.expo_push_token:
+                            continue
+                        
+                        settings = user.settings.news_settings or {}
+                        if not settings.get("enabled", False):
+                            continue
+                            
+                        push_token = user.settings.expo_push_token
+                        currencies = settings.get("currencies", [])
+                        impacts = settings.get("impacts", [])
+                        minutes_before = settings.get("minutesBefore", 5)
+                        
+                        threshold_dt = now_dt + datetime.timedelta(minutes=minutes_before)
+                        
+                        for ev in _news_cache:
+                            country = ev.get("country", "")
+                            impact = ev.get("impact", "")
+                            
+                            if country not in currencies or impact not in impacts:
+                                continue
+                                
+                            ev_date_str = ev.get("date", "")
+                            if not ev_date_str: continue
+                            
+                            try:
+                                # Forexfactory API returns ISO-like strings, usually parseable
+                                ev_dt = datetime.datetime.fromisoformat(ev_date_str.replace("Z", "+00:00"))
+                                if ev_dt.tzinfo is None:
+                                    ev_dt = ev_dt.replace(tzinfo=datetime.timezone.utc)
+                            except:
+                                continue
+                            
+                            # If event is within the timeframe window
+                            if now_dt < ev_dt <= threshold_dt:
+                                title = ev.get("title", "Berita Ekonomi")
+                                ev_id = f"{user.id}_{title}_{ev_date_str}"
+                                
+                                if ev_id not in _news_notified:
+                                    _news_notified.add(ev_id)
+                                    forecast = ev.get("forecast", "-")
+                                    prev = ev.get("previous", "-")
+                                    
+                                    await send_expo_push_notification(
+                                        push_token,
+                                        f"📰 {country} {impact} Impact",
+                                        f"{title} rilis dalam {minutes_before} menit.\nForecast: {forecast} | Prev: {prev}",
+                                        {"type": "news", "country": country, "impact": impact}
+                                    )
+                                    
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"⚠ News evaluator error: {e}")
+            
+        await asyncio.sleep(60)  # Check every minute
 
 
 # ── Health Check ──────────────────────────────────────────────────────────────

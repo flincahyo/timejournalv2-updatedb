@@ -134,19 +134,33 @@ export default function App() {
         }));
       }
 
+      let tokenSent = false;
       function checkAndSendPushToken() {
+        if (tokenSent) return;
         const jwt = localStorage.getItem('uj_token');
         if (jwt) {
           window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'USER_LOGGED_IN',
             jwt: jwt
           }));
+          tokenSent = true;
         }
       }
 
       sendTheme();
-      // Check for login state after a delay (login page sets token after redirect)
-      setTimeout(checkAndSendPushToken, 2000);
+      checkAndSendPushToken();
+
+      // Hook into localStorage.setItem to catch login instantly
+      const originalSetItem = localStorage.setItem;
+      localStorage.setItem = function(key, value) {
+        originalSetItem.apply(this, arguments);
+        if (key === 'uj_token') {
+          checkAndSendPushToken();
+        }
+      };
+
+      // Also poll every 3 seconds just in case
+      setInterval(checkAndSendPushToken, 3000);
 
       // Watch <html> class changes (dark/light toggle)
       const themeObserver = new MutationObserver((mutations) => {

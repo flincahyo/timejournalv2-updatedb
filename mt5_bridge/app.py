@@ -288,6 +288,17 @@ async def push_loop():
                     for p in positions:
                         if p.get("symbol"):
                             symbols.add(p["symbol"])
+                            
+                    # Fetch active alert symbols from backend so we track them even without positions
+                    try:
+                        headers = {"X-Bridge-Key": BRIDGE_API_KEY}
+                        async with httpx.AsyncClient(timeout=5.0) as client:
+                            res = await client.get(f"{BACKEND_URL}/api/mt5/alert-symbols", headers=headers)
+                            if res.status_code == 200:
+                                alert_syms = res.json().get("symbols", [])
+                                symbols.update(alert_syms)
+                    except Exception as e:
+                        print(f"[PUSH] Failed to fetch alert symbols: {e}")
                     
                     if symbols:
                         prices = {}
@@ -307,6 +318,9 @@ async def push_loop():
                                              "close": float(r["close"])}
                                             for r in rates
                                         ]
+                                        # Also add latest candle close as fallback price
+                                        if sym not in prices:
+                                            prices[sym] = float(rates[-1]["close"])
                                 except Exception:
                                     pass
                         

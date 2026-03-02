@@ -116,6 +116,16 @@ export default function NativeNewsPage() {
     }, []);
 
     const requestNotificationPermission = async () => {
+        // 1. Check if running in mobile app via WebView bridge
+        const isMobileApp = typeof window !== 'undefined' && 'ReactNativeWebView' in window;
+
+        if (isMobileApp) {
+            // Mobile app handles permissions natively, just toggle the database setting
+            updateSettings({ enabled: !settings.enabled });
+            return;
+        }
+
+        // 2. Desktop Browser HTML5 Fallback
         if (!('Notification' in window)) {
             alert("Browser ini tidak mendukung notifikasi desktop.");
             return;
