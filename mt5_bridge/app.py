@@ -309,16 +309,21 @@ async def push_loop():
                     print(f"[PUSH] Failed to fetch alert symbols: {e}")
                 
                 if all_symbols:
+                    print(f"[PUSH] Evaluating symbols: {all_symbols}")
                     prices = {}
                     candles = {}
                     with _mt5_lock:
                         for sym in all_symbols:
                             # Force MetaTrader to track this symbol in the Market Watch board
-                            mt5.symbol_select(sym, True)
+                            ok = mt5.symbol_select(sym, True)
+                            if not ok:
+                                print(f"  [MT5] Warning: symbol_select failed for {sym}. Check symbol suffix (e.g., m, z, c)!")
 
                             tick = mt5.symbol_info_tick(sym)
                             if tick:
                                 prices[sym] = float(tick.bid)
+                            else:
+                                print(f"  [MT5] Warning: tick for {sym} returned None")
                             # Also get M1 candle for candle alerts
                             try:
                                 rates = mt5.copy_rates_from_pos(sym, mt5.TIMEFRAME_M1, 0, 2)
@@ -336,6 +341,7 @@ async def push_loop():
                                 pass
                     
                     if prices:
+                        print(f"[PUSH] Pushing prices for: {list(prices.keys())}")
                         headers = {"X-Bridge-Key": BRIDGE_API_KEY, "Content-Type": "application/json"}
                         async with httpx.AsyncClient(timeout=10.0) as client:
                             res = await client.post(
@@ -345,6 +351,8 @@ async def push_loop():
                             )
                             if res.status_code != 200:
                                 print(f"[PUSH] Warning: backend rejected prices ({res.status_code}): {res.text[:100]}")
+                    else:
+                        print(f"[PUSH] No valid prices extracted for {all_symbols}. Skipping push.")
             except Exception as e:
                 print(f"[PUSH] Price push error: {e}")
 
