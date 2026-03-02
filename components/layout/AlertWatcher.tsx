@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAlertStore } from "@/store";
+import { apiPost } from "@/lib/api";
 
 export function AlertWatcher() {
     const { alerts, notifiedIds, markNotified, clearOldNotified, activeToasts, addToast, removeToast, updateAlert } = useAlertStore();
@@ -34,15 +35,9 @@ export function AlertWatcher() {
 
             try {
                 const payload = { items: Array.from(requestMap.values()) };
-                const res = await fetch("http://localhost:8000/api/candles", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
+                const json = await apiPost<any>("/api/candles", payload);
 
-                if (!res.ok) return;
-                const json = await res.json();
-                if (!json.data || !Array.isArray(json.data)) return;
+                if (!json || !json.data || !Array.isArray(json.data)) return;
 
                 // Process results
                 for (const result of json.data) {
