@@ -296,6 +296,9 @@ async def push_loop():
                 await push_to_backend({"user_id": user_id, "type": "live_trades", "trades": positions})
                 await push_to_backend({"user_id": user_id, "type": "account_update", "account": acc})
                 
+                # Watch these primary global symbols by default so the web UI ALWAYS has instant live prices
+                all_symbols = {"XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "US30", "NAS100", "US100", "SPX500", "BTCUSD", "ETHUSD"}
+                
                 # Accumulate live position symbols for global tracking
                 for p in positions:
                     if p.get("symbol"):
@@ -303,7 +306,7 @@ async def push_loop():
 
             # 4. Push latest prices for alert evaluation (GLOBAL, outside user loop)
             try:
-                # Fetch active alert symbols from backend so we track them even without positions
+                # Optionally fetch obscure alert symbols from backend. If this fails, we STILL have the core list above!
                 try:
                     headers = {"X-Bridge-Key": BRIDGE_API_KEY}
                     async with httpx.AsyncClient(timeout=5.0) as client:
@@ -312,8 +315,9 @@ async def push_loop():
                             alert_syms = res.json().get("symbols", [])
                             all_symbols.update(alert_syms)
                 except Exception as e:
-                    print(f"[PUSH] Failed to fetch alert symbols: {e}")
-                
+                    print(f"  [MT5] (Soft Warning) Could not fetch custom alert symbols: {e}")
+                    
+                # We no longer rely EXCLUSIVELY on the backend to tell us what to watch.
                 if all_symbols:
                     print(f"[PUSH] Evaluating symbols: {all_symbols}")
                     prices = {}
