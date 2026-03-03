@@ -82,7 +82,6 @@ _news_cache: List[dict] = []
 _news_notified: Set[str] = set()
 
 # ── Temporary tracked symbols (from frontend form typing) ─────────────────────
-_watching_symbols: Set[str] = set()
 
 
 async def broadcast_to_user(user_id: str, msg: dict):
